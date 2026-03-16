@@ -170,7 +170,7 @@ export default function ProductPage() {
                 <div className="absolute inset-0 bg-gradient-to-br from-red-600/30 to-amber-600/30 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
                 <div className="relative aspect-square rounded-3xl overflow-hidden border border-white/10 bg-[#1a1a2e]">
                   <img
-                    src="https://www.cloudemulator.net/app/2.56.6/assets/icon/256.png"
+                    src="/redfinger-icon.png"
                     alt="Redfinger Cloud Phone"
                     className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
                   />
@@ -480,7 +480,7 @@ export default function ProductPage() {
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-lg bg-[#1a1a2e] flex items-center justify-center p-1 hidden sm:block">
                     <img 
-                      src="https://www.cloudemulator.net/app/2.56.6/assets/icon/256.png"
+                      src="/redfinger-icon.png"
                       alt=""
                       className="w-full h-full object-contain"
                     />

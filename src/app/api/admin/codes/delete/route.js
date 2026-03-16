@@ -1,19 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../auth/[...nextauth]/route';
 import { adminDb } from '@/lib/firebaseAdmin';
 
-// Rate limiting
+// Simple in-memory rate limiting
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX = 30;
 
-function isRateLimited(ip) {
+function isRateLimited(identifier) {
     const now = Date.now();
-    const entry = rateLimitMap.get(ip);
+    const entry = rateLimitMap.get(identifier);
 
     if (!entry || now - entry.firstAttempt > RATE_LIMIT_WINDOW) {
-        rateLimitMap.set(ip, { firstAttempt: now, count: 1 });
+        rateLimitMap.set(identifier, { firstAttempt: now, count: 1 });
         return false;
     }
 
@@ -24,17 +22,12 @@ function isRateLimited(ip) {
     return false;
 }
 
-function isAdmin(email) {
-    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || [];
-    return adminEmails.includes(email);
-}
-
 export async function POST(req) {
     try {
-        // Rate limiting
-        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-                   req.headers.get('x-real-ip') || 
-                   'unknown';
+        // Get client IP for rate limiting
+        const forwarded = req.headers.get('x-forwarded-for');
+        const ip = forwarded ? forwarded.split(',')[0].trim() : 'unknown';
+        
         if (isRateLimited(ip)) {
             return NextResponse.json(
                 { success: false, message: 'Terlalu banyak permintaan. Coba lagi nanti.' },
@@ -42,24 +35,16 @@ export async function POST(req) {
             );
         }
 
-        // Authentication check
-        const session = await getServerSession(authOptions);
-        if (!session?.user?.email) {
+        // Get authorization header
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return NextResponse.json(
-                { success: false, message: 'Unauthorized. Please login.' },
+                { success: false, message: 'Unauthorized. Missing token.' },
                 { status: 401 }
             );
         }
 
-        // Admin check
-        if (!isAdmin(session.user.email)) {
-            return NextResponse.json(
-                { success: false, message: 'Forbidden. Admin access required.' },
-                { status: 403 }
-            );
-        }
-
-        // Parse body
+        // Parse body first to get codeId
         let body;
         try {
             body = await req.json();
@@ -71,10 +56,8 @@ export async function POST(req) {
         }
 
         const { codeId } = body;
+        console.log('[Delete Code] Request:', { codeId, ip });
 
-        console.log(`[Admin Delete Code] Request received:`, { codeId, user: session.user.email });
-
-        // Validation
         if (!codeId) {
             return NextResponse.json(
                 { success: false, message: 'Code ID is required' },
@@ -82,7 +65,7 @@ export async function POST(req) {
             );
         }
 
-        if (typeof codeId !== 'string' || codeId.length < 1 || codeId.length > 100) {
+        if (typeof codeId !== 'string') {
             return NextResponse.json(
                 { success: false, message: 'Invalid Code ID format' },
                 { status: 400 }
@@ -111,7 +94,7 @@ export async function POST(req) {
         // Delete using Admin SDK (bypasses security rules)
         await adminDb.collection('redeem_codes').doc(codeId).delete();
 
-        console.log(`[Admin] Code deleted: ${codeId} by ${session.user.email}`);
+        console.log(`[Delete Code] Success: ${codeId}`);
 
         return NextResponse.json({
             success: true,
@@ -119,9 +102,9 @@ export async function POST(req) {
         });
 
     } catch (error) {
-        console.error('Delete code error:', error);
+        console.error('[Delete Code] Error:', error);
         return NextResponse.json(
-            { success: false, message: 'Failed to delete code' },
+            { success: false, message: 'Failed to delete code: ' + error.message },
             { status: 500 }
         );
     }

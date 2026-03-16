@@ -174,14 +174,19 @@ export default function CloudphoneManager() {
     };
 
     const handleDeleteCode = async (id) => {
+        console.log('[Delete Code] Attempting to delete:', id);
         setLoading(true);
         try {
             const res = await fetch('/api/admin/codes/delete', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({ codeId: id })
             });
+            console.log('[Delete Code] Response status:', res.status);
             const data = await res.json();
+            console.log('[Delete Code] Response data:', data);
             
             if (data.success) {
                 if (selectedType) fetchCodes(selectedType.id);
@@ -190,7 +195,7 @@ export default function CloudphoneManager() {
                 toast.error(data.message || 'Failed to delete code');
             }
         } catch (error) {
-            console.error("Error deleting code", error);
+            console.error("[Delete Code] Error:", error);
             toast.error(`Failed to delete code: ${error.message}`);
         } finally {
             setLoading(false);

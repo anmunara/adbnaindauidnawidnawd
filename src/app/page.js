@@ -11,7 +11,7 @@ const PRODUCTS = [
     slug: 'redfinger',
     name: 'Redfinger Cloud Phone',
     category: 'Cloud Phone',
-    image: 'https://www.cloudemulator.net/app/2.56.6/assets/icon/256.png',
+    image: '/redfinger-icon.png',
     description: 'Cloud Phone Android 24/7 online. Solusi terbaik untuk bot, farming game, & multi-account.',
     badge: 'Best Seller',
     price: 'Rp 19.000',
@@ -120,7 +120,7 @@ export default function Home() {
               <div className="relative bg-gradient-to-br from-[#1a1a24] to-[#12121a] border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
                 <div className="relative h-64 rounded-2xl overflow-hidden mb-6 bg-[#1a1a2e]">
                   <img
-                    src="https://www.cloudemulator.net/app/2.56.6/assets/icon/256.png"
+                    src="/redfinger-icon.png"
                     alt="Cloud Phone"
                     className="w-full h-full object-contain p-4"
                   />
