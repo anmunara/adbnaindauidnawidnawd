@@ -88,17 +88,28 @@ export default function CloudphoneManager() {
         }
         setLoading(true);
         try {
-            await addDoc(collection(db, "game_types"), {
-                name: newTypeName,
-                sellingPrice: parseFloat(newSellingPrice) || 0,
-                capitalPrice: parseFloat(newCapitalPrice) || 0,
-                createdAt: serverTimestamp(),
+            const res = await fetch('/api/admin/types/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newTypeName,
+                    sellingPrice: newSellingPrice,
+                    capitalPrice: newCapitalPrice
+                })
             });
-            setNewTypeName("");
-            setNewSellingPrice("");
-            setNewCapitalPrice("");
-            fetchTypes();
-            toast.success(`Type "${newTypeName}" added successfully`);
+            
+            const data = await res.json();
+            console.log('[Add Type] Response:', data);
+            
+            if (data.success) {
+                setNewTypeName("");
+                setNewSellingPrice("");
+                setNewCapitalPrice("");
+                fetchTypes();
+                toast.success(`Type "${newTypeName}" added successfully`);
+            } else {
+                toast.error(data.message || 'Failed to add type');
+            }
         } catch (error) {
             console.error("Error adding type", error);
             toast.error(`Failed to add type: ${error.message}`);
@@ -139,7 +150,6 @@ export default function CloudphoneManager() {
             toast.error("Please enter code(s) and select a type");
             return;
         }
-        setLoading(true);
 
         // Split input by newline or comma to support bulk upload
         const codesToAdd = newCode.split(/[\n,]+/).map(c => c.trim()).filter(c => c);
@@ -151,22 +161,27 @@ export default function CloudphoneManager() {
 
         setLoading(true);
         try {
-            const promises = codesToAdd.map(code =>
-                addDoc(collection(db, "redeem_codes"), {
-                    code: code,
-                    note: newNote, // Same note for all batch added codes
+            const res = await fetch('/api/admin/codes/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    codes: codesToAdd,
                     typeId: selectedType.id,
-                    createdAt: serverTimestamp(),
-                    isUsed: false,
+                    note: newNote
                 })
-            );
-
-            await Promise.all(promises);
-
-            setNewCode("");
-            setNewNote(""); // Reset Note
-            fetchCodes(selectedType.id);
-            toast.success(`${codesToAdd.length} code(s) added to "${selectedType.name}"`);
+            });
+            
+            const data = await res.json();
+            console.log('[Add Code] Response:', data);
+            
+            if (data.success) {
+                setNewCode("");
+                setNewNote("");
+                fetchCodes(selectedType.id);
+                toast.success(`${data.addedCount} code(s) added to "${selectedType.name}"`);
+            } else {
+                toast.error(data.message || 'Failed to add codes');
+            }
         } catch (error) {
             console.error("Error adding code", error);
             toast.error(`Failed to add codes: ${error.message}`);
@@ -222,15 +237,27 @@ export default function CloudphoneManager() {
         }
         setLoading(true);
         try {
-            await updateDoc(doc(db, "redeem_codes", editingCode.id), {
-                code: editingCode.code,
-                note: editingCode.note,
-                updatedAt: serverTimestamp()
+            const res = await fetch('/api/admin/codes/edit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    codeId: editingCode.id,
+                    code: editingCode.code,
+                    note: editingCode.note
+                })
             });
-            setEditingCode(null);
-            setEditDialogOpen(false);
-            if (selectedType) fetchCodes(selectedType.id);
-            toast.success(`Code updated to "${editingCode.code}"`);
+            
+            const data = await res.json();
+            console.log('[Edit Code] Response:', data);
+            
+            if (data.success) {
+                setEditingCode(null);
+                setEditDialogOpen(false);
+                if (selectedType) fetchCodes(selectedType.id);
+                toast.success(`Code updated to "${editingCode.code}"`);
+            } else {
+                toast.error(data.message || 'Failed to update code');
+            }
         } catch (error) {
             console.error("Error updating code", error);
             toast.error(`Failed to update code: ${error.message}`);
@@ -247,15 +274,27 @@ export default function CloudphoneManager() {
         }
         setLoading(true);
         try {
-            await updateDoc(doc(db, "game_types", editingType.id), {
-                name: editingType.name,
-                sellingPrice: parseFloat(editingType.sellingPrice) || 0,
-                capitalPrice: parseFloat(editingType.capitalPrice) || 0,
-                updatedAt: serverTimestamp()
+            const res = await fetch('/api/admin/types/edit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    typeId: editingType.id,
+                    name: editingType.name,
+                    sellingPrice: editingType.sellingPrice,
+                    capitalPrice: editingType.capitalPrice
+                })
             });
-            setEditingType(null);
-            fetchTypes();
-            toast.success(`Type "${editingType.name}" updated successfully`);
+            
+            const data = await res.json();
+            console.log('[Edit Type] Response:', data);
+            
+            if (data.success) {
+                setEditingType(null);
+                fetchTypes();
+                toast.success(`Type "${editingType.name}" updated successfully`);
+            } else {
+                toast.error(data.message || 'Failed to update type');
+            }
         } catch (error) {
             console.error("Error updating type", error);
             toast.error(`Failed to update type: ${error.message}`);
