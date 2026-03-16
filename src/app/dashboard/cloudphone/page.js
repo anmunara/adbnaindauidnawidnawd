@@ -192,11 +192,8 @@ export default function CloudphoneManager() {
                 if (selectedType) fetchCodes(selectedType.id);
                 toast.success(force ? "Code force deleted" : "Code deleted successfully");
             } else if (data.isUsed && !force) {
-                // Code is sold, ask for confirmation (no toast, just native confirm)
-                if (confirm(`Code sudah terjual. Hapus paksa?`)) {
-                    await handleDeleteCode(id, true);
-                }
-                // Don't show error toast when asking for confirmation
+                // Code is sold but user already confirmed in AlertDialog, so force delete
+                await handleDeleteCode(id, true);
             } else {
                 toast.error(data.message || 'Failed to delete code');
             }
@@ -860,6 +857,11 @@ export default function CloudphoneManager() {
                                                                 <AlertDialog.Title>Delete Code</AlertDialog.Title>
                                                                 <AlertDialog.Description size="2">
                                                                     Are you sure you want to delete this code? This action cannot be undone.
+                                                                    {code.isUsed && (
+                                                                        <span style={{ color: '#ef4444', display: 'block', marginTop: '8px' }}>
+                                                                            Warning: This code has been sold.
+                                                                        </span>
+                                                                    )}
                                                                 </AlertDialog.Description>
 
                                                                 <Flex gap="3" mt="4" justify="end">
