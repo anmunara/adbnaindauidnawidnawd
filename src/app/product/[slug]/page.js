@@ -168,11 +168,11 @@ export default function ProductPage() {
             <div className="w-full lg:w-1/3">
               <div className="relative group">
                 <div className="absolute inset-0 bg-gradient-to-br from-red-600/30 to-amber-600/30 rounded-3xl blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
-                <div className="relative aspect-square rounded-3xl overflow-hidden border border-white/10">
+                <div className="relative aspect-square rounded-3xl overflow-hidden border border-white/10 bg-[#1a1a2e]">
                   <img
-                    src="https://images.unsplash.com/photo-1551650975-87deedd944c3?w=600&q=80"
+                    src="https://www.cloudemulator.net/app/2.56.6/assets/icon/256.png"
                     alt="Redfinger Cloud Phone"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/80 via-transparent to-transparent" />
                   <div className="absolute bottom-4 left-4 right-4">
@@ -478,11 +478,13 @@ export default function ProductPage() {
             <div className="flex-1 min-w-0">
               {selectedItem ? (
                 <div className="flex items-center gap-4">
-                  <img 
-                    src="https://images.unsplash.com/photo-1551650975-87deedd944c3?w=100&q=80"
-                    alt=""
-                    className="w-12 h-12 rounded-lg object-cover hidden sm:block"
-                  />
+                  <div className="w-12 h-12 rounded-lg bg-[#1a1a2e] flex items-center justify-center p-1 hidden sm:block">
+                    <img 
+                      src="https://www.cloudemulator.net/app/2.56.6/assets/icon/256.png"
+                      alt=""
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
                   <div className="min-w-0">
                     <p className="text-sm text-gray-400 truncate">{selectedItem.name}</p>
                     <p className="text-xl font-bold text-amber-400">

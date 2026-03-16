@@ -11,7 +11,7 @@ const PRODUCTS = [
     slug: 'redfinger',
     name: 'Redfinger Cloud Phone',
     category: 'Cloud Phone',
-    image: 'https://images.unsplash.com/photo-1551650975-87deedd944c3?w=600&q=80',
+    image: 'https://www.cloudemulator.net/app/2.56.6/assets/icon/256.png',
     description: 'Cloud Phone Android 24/7 online. Solusi terbaik untuk bot, farming game, & multi-account.',
     badge: 'Best Seller',
     price: 'Rp 19.000',
@@ -118,11 +118,11 @@ export default function Home() {
             <div className="hidden lg:block relative">
               <div className="absolute inset-0 bg-gradient-to-r from-red-600/30 to-amber-600/30 rounded-3xl blur-3xl" />
               <div className="relative bg-gradient-to-br from-[#1a1a24] to-[#12121a] border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
-                <div className="relative h-64 rounded-2xl overflow-hidden mb-6">
+                <div className="relative h-64 rounded-2xl overflow-hidden mb-6 bg-[#1a1a2e]">
                   <img
-                    src="https://images.unsplash.com/photo-1551650975-87deedd944c3?w=600&q=80"
+                    src="https://www.cloudemulator.net/app/2.56.6/assets/icon/256.png"
                     alt="Cloud Phone"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain p-4"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#12121a] via-transparent to-transparent" />
                   <div className="absolute top-4 left-4 px-3 py-1 bg-red-600 rounded-full text-xs font-bold">
@@ -190,11 +190,11 @@ export default function Home() {
                 className="group relative bg-gradient-to-br from-[#141419] to-[#0f0f13] border border-white/10 rounded-3xl overflow-hidden hover:border-red-500/30 transition-all duration-500"
               >
                 {/* Image */}
-                <div className="relative h-56 overflow-hidden">
+                <div className="relative h-56 overflow-hidden bg-[#1a1a2e]">
                   <img
                     src={product.image}
                     alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                    className="w-full h-full object-contain p-6 group-hover:scale-110 transition-transform duration-700"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f13] via-transparent to-transparent" />
                   {product.badge && (
