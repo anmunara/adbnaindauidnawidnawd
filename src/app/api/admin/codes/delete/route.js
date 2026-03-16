@@ -46,8 +46,8 @@ export async function POST(req) {
             );
         }
 
-        const { codeId } = body;
-        console.log('[Delete Code] Request:', { codeId, ip });
+        const { codeId, force } = body;
+        console.log('[Delete Code] Request:', { codeId, force, ip });
 
         if (!codeId) {
             return NextResponse.json(
@@ -73,11 +73,17 @@ export async function POST(req) {
         }
 
         const codeData = codeDoc.data();
+        console.log('[Delete Code] Code data:', { isUsed: codeData.isUsed, soldTo: codeData.soldTo });
 
-        // Prevent deleting already used codes (optional safety)
-        if (codeData.isUsed) {
+        // Prevent deleting already used codes (unless force=true)
+        if (codeData.isUsed === true && !force) {
             return NextResponse.json(
-                { success: false, message: 'Cannot delete code that has been sold' },
+                { 
+                    success: false, 
+                    message: 'Code has been sold. Use force delete if you really want to delete it.',
+                    isUsed: true,
+                    soldTo: codeData.soldTo || 'unknown'
+                },
                 { status: 400 }
             );
         }
@@ -85,11 +91,11 @@ export async function POST(req) {
         // Delete using Admin SDK (bypasses security rules)
         await adminDb.collection('redeem_codes').doc(codeId).delete();
 
-        console.log(`[Delete Code] Success: ${codeId}`);
+        console.log(`[Delete Code] Success: ${codeId} (force=${!!force})`);
 
         return NextResponse.json({
             success: true,
-            message: 'Code deleted successfully'
+            message: force ? 'Code force deleted successfully' : 'Code deleted successfully'
         });
 
     } catch (error) {

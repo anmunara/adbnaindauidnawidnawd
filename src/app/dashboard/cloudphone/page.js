@@ -173,8 +173,8 @@ export default function CloudphoneManager() {
         }
     };
 
-    const handleDeleteCode = async (id) => {
-        console.log('[Delete Code] Attempting to delete:', id);
+    const handleDeleteCode = async (id, force = false) => {
+        console.log('[Delete Code] Attempting to delete:', id, 'force:', force);
         setLoading(true);
         try {
             const res = await fetch('/api/admin/codes/delete', {
@@ -182,7 +182,7 @@ export default function CloudphoneManager() {
                 headers: { 
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ codeId: id })
+                body: JSON.stringify({ codeId: id, force })
             });
             console.log('[Delete Code] Response status:', res.status);
             const data = await res.json();
@@ -190,7 +190,12 @@ export default function CloudphoneManager() {
             
             if (data.success) {
                 if (selectedType) fetchCodes(selectedType.id);
-                toast.success("Code deleted successfully");
+                toast.success(force ? "Code force deleted" : "Code deleted successfully");
+            } else if (data.isUsed && !force) {
+                // Code is sold, ask for confirmation
+                if (confirm(`Code has been sold to ${data.soldTo}. Force delete anyway?`)) {
+                    await handleDeleteCode(id, true);
+                }
             } else {
                 toast.error(data.message || 'Failed to delete code');
             }
