@@ -15,10 +15,10 @@ const FOOTER_LINKS = {
         { label: 'Voucher', href: '#' },
     ],
     bantuan: [
-        { label: 'Cara Pemesanan', href: '#' },
-        { label: 'Syarat & Ketentuan', href: '/terms' },
-        { label: 'Kebijakan Privasi', href: '/privacy' },
-        { label: 'FAQ', href: '#' },
+        { label: 'Cara Pemesanan', href: '/cara-pemesanan' },
+        { label: 'Syarat & Ketentuan', href: '/syarat-ketentuan' },
+        { label: 'Kebijakan Privasi', href: '/kebijakan-privasi' },
+        { label: 'FAQ', href: '/faq' },
     ],
     kontak: [
         { icon: Mail, label: 'support@kingblox.id', href: 'mailto:support@kingblox.id' },
