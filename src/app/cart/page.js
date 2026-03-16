@@ -156,33 +156,69 @@ export default function CartPage() {
     if (!userId) return toast.error('Masukkan User ID kamu!');
     if (!selectedPayment) return toast.error('Pilih metode pembayaran!');
 
-    // Check stock
+    // Validate User ID format
+    if (userId.length < 3 || userId.length > 100) {
+      return toast.error('User ID harus 3-100 karakter!');
+    }
+    if (!/^[a-zA-Z0-9._%+-@]+$/.test(userId)) {
+      return toast.error('User ID mengandung karakter tidak valid!');
+    }
+
+    // Validate WhatsApp if provided
+    if (whatsapp) {
+      const waClean = whatsapp.replace(/\D/g, '');
+      if (waClean.length < 10 || waClean.length > 15) {
+        return toast.error('Nomor WhatsApp tidak valid!');
+      }
+    }
+
+    // Check stock and validate price from server (prevent manipulation)
     for (const item of cart) {
       const product = products.find(p => p.id === item.id);
-      if (!product || product.stock < item.quantity) {
-        return toast.error(`Stok ${item.name} tidak mencukupi!`);
+      if (!product) {
+        return toast.error(`Produk ${item.name} tidak ditemukan!`);
+      }
+      if (product.stock < item.quantity) {
+        return toast.error(`Stok ${item.name} tidak mencukupi! Tersedia: ${product.stock}`);
+      }
+      // Validate price hasn't been manipulated
+      if (product.price !== item.price) {
+        toast.error(`Harga ${item.name} telah berubah. Mengupdate...`);
+        // Update cart with correct price
+        setCart(prev => prev.map(cartItem => 
+          cartItem.id === item.id 
+            ? { ...cartItem, price: product.price }
+            : cartItem
+        ));
+        return;
       }
     }
 
     setLoading(true);
     try {
-      // Create transaction for each item
+      // Create transaction for each item with validated data
       const results = [];
       for (const item of cart) {
+        const product = products.find(p => p.id === item.id);
         const res = await fetch('/api/transaction/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             itemId: item.id,
-            userId: userId,
-            whatsapp: whatsapp || undefined,
+            itemName: item.name,
+            userId: userId.trim(),
+            price: product.price, // Use server-verified price
+            whatsapp: whatsapp ? whatsapp.replace(/\D/g, '') : undefined,
             paymentMethod: selectedPayment.code,
             quantity: item.quantity,
           }),
         });
         const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.message || 'Gagal membuat transaksi');
+        }
         if (data.success) {
-          results.push(data.data);
+          results.push(data);
         }
       }
 
