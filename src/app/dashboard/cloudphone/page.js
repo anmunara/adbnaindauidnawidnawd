@@ -106,14 +106,23 @@ export default function CloudphoneManager() {
     };
 
     const handleDeleteType = async (id) => {
-        // Confirmation is now handled by AlertDialog in UI
         setLoading(true);
         try {
-            await deleteDoc(doc(db, "game_types", id));
-            const deletedType = types.find(t => t.id === id);
-            if (selectedType?.id === id) handleSelectType(null);
-            fetchTypes();
-            toast.success(`Type "${deletedType?.name || 'Unknown'}" deleted`);
+            const res = await fetch('/api/admin/types/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ typeId: id })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                const deletedType = types.find(t => t.id === id);
+                if (selectedType?.id === id) handleSelectType(null);
+                fetchTypes();
+                toast.success(`Type "${deletedType?.name || 'Unknown'}" deleted`);
+            } else {
+                toast.error(data.message || 'Failed to delete type');
+            }
         } catch (error) {
             console.error("Error deleting type", error);
             toast.error(`Failed to delete type: ${error.message}`);
@@ -165,12 +174,21 @@ export default function CloudphoneManager() {
     };
 
     const handleDeleteCode = async (id) => {
-        // Confirmation is now handled by AlertDialog in UI
         setLoading(true);
         try {
-            await deleteDoc(doc(db, "redeem_codes", id));
-            if (selectedType) fetchCodes(selectedType.id);
-            toast.success("Code deleted successfully");
+            const res = await fetch('/api/admin/codes/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ codeId: id })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                if (selectedType) fetchCodes(selectedType.id);
+                toast.success("Code deleted successfully");
+            } else {
+                toast.error(data.message || 'Failed to delete code');
+            }
         } catch (error) {
             console.error("Error deleting code", error);
             toast.error(`Failed to delete code: ${error.message}`);
