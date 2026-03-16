@@ -11,6 +11,21 @@ function Navbar() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [cartCount, setCartCount] = useState(0);
+
+    useEffect(() => {
+        const updateCartCount = () => {
+            const cart = JSON.parse(localStorage.getItem('kingblox_cart') || '[]');
+            setCartCount(cart.reduce((a, b) => a + b.quantity, 0));
+        };
+        updateCartCount();
+        window.addEventListener('storage', updateCartCount);
+        const interval = setInterval(updateCartCount, 1000);
+        return () => {
+            window.removeEventListener('storage', updateCartCount);
+            clearInterval(interval);
+        };
+    }, []);
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -75,9 +90,14 @@ function Navbar() {
                         {/* Cart */}
                         <Link 
                             href="/cart" 
-                            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+                            className="relative p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
                         >
                             <ShoppingCart className="w-5 h-5 text-gray-300" />
+                            {cartCount > 0 && (
+                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                                    {cartCount > 9 ? '9+' : cartCount}
+                                </span>
+                            )}
                         </Link>
 
                         {/* Auth */}

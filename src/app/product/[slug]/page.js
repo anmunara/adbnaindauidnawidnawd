@@ -17,7 +17,9 @@ import {
   Check,
   AlertCircle,
   Copy,
-  Wallet
+  Wallet,
+  ShoppingCart,
+  ArrowRight
 } from 'lucide-react';
 
 const PAYMENT_GROUPS = [
@@ -118,6 +120,31 @@ export default function ProductPage() {
     setSelectedItem(product);
     setSelectedPayment(null);
     setOpenPaymentGroup(null);
+  };
+
+  const addToCart = () => {
+    if (!selectedItem) return toast.error('Pilih paket dulu!');
+    if (selectedItem.stock <= 0) return toast.error('Paket sedang habis stok!');
+
+    const cartItem = {
+      id: selectedItem.id,
+      name: selectedItem.name,
+      price: selectedItem.price,
+      duration: selectedItem.name,
+      stock: selectedItem.stock,
+      quantity: 1,
+    };
+
+    const existingCart = JSON.parse(localStorage.getItem('kingblox_cart') || '[]');
+    const existingItem = existingCart.find(item => item.id === cartItem.id);
+
+    if (existingItem) {
+      toast.info('Item sudah ada di keranjang');
+    } else {
+      existingCart.push(cartItem);
+      localStorage.setItem('kingblox_cart', JSON.stringify(existingCart));
+      toast.success('Ditambahkan ke keranjang!');
+    }
   };
 
   return (
@@ -466,27 +493,41 @@ export default function ProductPage() {
               )}
             </div>
 
-            {/* CTA Button */}
-            <button
-              onClick={handleBuy}
-              disabled={loading || !selectedItem || !userId || !selectedPayment}
-              className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all
-                ${loading || !selectedItem || !userId || !selectedPayment
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white shadow-lg shadow-red-600/25'}`}
-            >
-              {loading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Memproses...</span>
-                </>
-              ) : (
-                <>
-                  <span>Beli Sekarang</span>
-                  <ChevronRight className="w-5 h-5" />
-                </>
-              )}
-            </button>
+            {/* CTA Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={addToCart}
+                disabled={!selectedItem || selectedItem?.stock <= 0}
+                className={`flex items-center gap-2 px-6 py-4 rounded-xl font-semibold transition-all border-2
+                  ${!selectedItem || selectedItem?.stock <= 0
+                    ? 'border-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'border-red-600 text-red-500 hover:bg-red-600 hover:text-white'}`}
+              >
+                <ShoppingCart className="w-5 h-5" />
+                <span>Keranjang</span>
+              </button>
+              
+              <button
+                onClick={handleBuy}
+                disabled={loading || !selectedItem || !userId || !selectedPayment}
+                className={`flex items-center gap-2 px-8 py-4 rounded-xl font-semibold transition-all
+                  ${loading || !selectedItem || !userId || !selectedPayment
+                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white shadow-lg shadow-red-600/25'}`}
+              >
+                {loading ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Beli Sekarang</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
