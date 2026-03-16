@@ -35,16 +35,7 @@ export async function POST(req) {
             );
         }
 
-        // Get authorization header
-        const authHeader = req.headers.get('authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json(
-                { success: false, message: 'Unauthorized. Missing token.' },
-                { status: 401 }
-            );
-        }
-
-        // Parse body first to get codeId
+        // Parse body
         let body;
         try {
             body = await req.json();
