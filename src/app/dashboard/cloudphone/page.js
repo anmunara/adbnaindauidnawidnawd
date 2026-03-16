@@ -23,6 +23,8 @@ export default function CloudphoneManager() {
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editingType, setEditingType] = useState(null);
     const [error, setError] = useState("");
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [codeToDelete, setCodeToDelete] = useState(null);
 
     // Fetch Types on Load
     useEffect(() => {
@@ -173,7 +175,9 @@ export default function CloudphoneManager() {
         }
     };
 
-    const handleDeleteCode = async (id, force = false) => {
+    const handleDeleteCode = async (force = false) => {
+        if (!codeToDelete) return;
+        const id = codeToDelete;
         console.log('[Delete Code] Attempting to delete:', id, 'force:', force);
         setLoading(true);
         try {
@@ -189,20 +193,32 @@ export default function CloudphoneManager() {
             console.log('[Delete Code] Response data:', data);
             
             if (data.success) {
-                if (selectedType) fetchCodes(selectedType.id);
+                // Always refresh codes regardless of selectedType
+                await fetchCodes(selectedType?.id || null);
                 toast.success(force ? "Code force deleted" : "Code deleted successfully");
+                setDeleteDialogOpen(false);
+                setCodeToDelete(null);
+                return { success: true };
             } else if (data.isUsed && !force) {
                 // Code is sold but user already confirmed in AlertDialog, so force delete
-                await handleDeleteCode(id, true);
+                console.log('[Delete Code] Code is sold, retrying with force=true');
+                return await handleDeleteCode(true);
             } else {
                 toast.error(data.message || 'Failed to delete code');
+                return { success: false, error: data.message };
             }
         } catch (error) {
             console.error("[Delete Code] Error:", error);
             toast.error(`Failed to delete code: ${error.message}`);
+            return { success: false, error: error.message };
         } finally {
             setLoading(false);
         }
+    };
+
+    const openDeleteDialog = (code) => {
+        setCodeToDelete(code.id);
+        setDeleteDialogOpen(true);
     };
 
     const handleUpdateCode = async (e) => {
@@ -847,37 +863,13 @@ export default function CloudphoneManager() {
                                                             </Dialog.Content>
                                                         </Dialog.Root>
 
-                                                        <AlertDialog.Root>
-                                                            <AlertDialog.Trigger>
-                                                                <IconButton variant="soft" color="red">
-                                                                    <TrashIcon />
-                                                                </IconButton>
-                                                            </AlertDialog.Trigger>
-                                                            <AlertDialog.Content maxWidth="450px">
-                                                                <AlertDialog.Title>Delete Code</AlertDialog.Title>
-                                                                <AlertDialog.Description size="2">
-                                                                    Are you sure you want to delete this code? This action cannot be undone.
-                                                                    {code.isUsed && (
-                                                                        <span style={{ color: '#ef4444', display: 'block', marginTop: '8px' }}>
-                                                                            Warning: This code has been sold.
-                                                                        </span>
-                                                                    )}
-                                                                </AlertDialog.Description>
-
-                                                                <Flex gap="3" mt="4" justify="end">
-                                                                    <AlertDialog.Cancel>
-                                                                        <Button variant="soft" color="gray">
-                                                                            Cancel
-                                                                        </Button>
-                                                                    </AlertDialog.Cancel>
-                                                                    <AlertDialog.Action>
-                                                                        <Button variant="solid" color="red" onClick={() => handleDeleteCode(code.id)}>
-                                                                            Delete
-                                                                        </Button>
-                                                                    </AlertDialog.Action>
-                                                                </Flex>
-                                                            </AlertDialog.Content>
-                                                        </AlertDialog.Root>
+                                                        <IconButton 
+                                                            variant="soft" 
+                                                            color="red"
+                                                            onClick={() => openDeleteDialog(code)}
+                                                        >
+                                                            <TrashIcon />
+                                                        </IconButton>
                                                     </Flex>
                                                 </Table.Cell>
                                             </Table.Row>
@@ -896,6 +888,34 @@ export default function CloudphoneManager() {
                     </Flex>
                 </Card>
             </Grid>
+
+            {/* Global Delete Confirmation Dialog */}
+            <AlertDialog.Root open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialog.Content maxWidth="450px">
+                    <AlertDialog.Title>Delete Code</AlertDialog.Title>
+                    <AlertDialog.Description size="2">
+                        Are you sure you want to delete this code? This action cannot be undone.
+                    </AlertDialog.Description>
+
+                    <Flex gap="3" mt="4" justify="end">
+                        <AlertDialog.Cancel>
+                            <Button variant="soft" color="gray" onClick={() => setCodeToDelete(null)}>
+                                Cancel
+                            </Button>
+                        </AlertDialog.Cancel>
+                        <AlertDialog.Action>
+                            <Button 
+                                variant="solid" 
+                                color="red" 
+                                onClick={() => handleDeleteCode(false)}
+                                disabled={loading}
+                            >
+                                {loading ? "Deleting..." : "Delete"}
+                            </Button>
+                        </AlertDialog.Action>
+                    </Flex>
+                </AlertDialog.Content>
+            </AlertDialog.Root>
         </Flex>
     );
 }
