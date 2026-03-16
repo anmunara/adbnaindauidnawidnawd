@@ -9,7 +9,12 @@ import {
   CheckCircle, 
   Package,
   ArrowRight,
-  MessageCircle
+  MessageCircle,
+  QrCode,
+  Building2,
+  Wallet,
+  Store,
+  Smartphone
 } from 'lucide-react';
 
 const STEPS = [
@@ -52,10 +57,10 @@ const STEPS = [
 ];
 
 const PAYMENT_METHODS = [
-  { name: 'QRIS', icon: '📱', description: 'Semua E-Wallet & Banking' },
-  { name: 'Virtual Account', icon: '🏦', description: 'Mandiri, BNI, BRI, ATM Bersama' },
-  { name: 'E-Wallet', icon: '💳', description: 'OVO, DANA, ShopeePay, GoPay' },
-  { name: 'Retail', icon: '🏪', description: 'Indomaret & Alfamart' },
+  { name: 'QRIS', Icon: QrCode, description: 'Semua E-Wallet & Banking' },
+  { name: 'Virtual Account', Icon: Building2, description: 'Mandiri, BNI, BRI, ATM Bersama' },
+  { name: 'E-Wallet', Icon: Wallet, description: 'OVO, DANA, ShopeePay, GoPay' },
+  { name: 'Retail', Icon: Store, description: 'Indomaret & Alfamart' },
 ];
 
 export default function CaraPemesanan() {
@@ -122,7 +127,9 @@ export default function CaraPemesanan() {
                   key={index}
                   className="bg-[#141419] border border-white/10 rounded-xl p-4 text-center hover:border-red-500/30 transition-all"
                 >
-                  <span className="text-4xl mb-3 block">{method.icon}</span>
+                  <div className="w-12 h-12 rounded-xl bg-red-600/20 flex items-center justify-center mx-auto mb-3">
+                    <method.Icon className="w-6 h-6 text-red-500" />
+                  </div>
                   <h4 className="font-semibold mb-1">{method.name}</h4>
                   <p className="text-xs text-gray-400">{method.description}</p>
                 </div>
@@ -164,7 +171,7 @@ export default function CaraPemesanan() {
             href="/product/redfinger"
             className="inline-flex items-center gap-2 px-8 py-4 bg-red-600 hover:bg-red-500 rounded-xl font-semibold transition-all"
           >
-            <ShoppingCart className="w-5 h-5" />
+            <Smartphone className="w-5 h-5" />
             Pesan Sekarang
             <ArrowRight className="w-5 h-5" />
           </a>

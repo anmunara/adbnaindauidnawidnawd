@@ -15,51 +15,55 @@ import {
   Package,
   Wallet,
   ChevronRight,
-  ShoppingBag
+  ShoppingBag,
+  QrCode,
+  Building2,
+  Store,
+  Smartphone
 } from 'lucide-react';
 
 const PAYMENT_GROUPS = [
   {
     id: 'qris',
     name: 'QRIS',
-    icon: '📱',
+    Icon: QrCode,
     color: 'from-blue-500 to-cyan-500',
     methods: [
-      { code: 'SQ', name: 'QRIS (All E-Wallet)', fee: '+1%', icon: '💳' },
+      { code: 'SQ', name: 'QRIS (All E-Wallet)', fee: '+1%' },
     ]
   },
   {
     id: 'va',
     name: 'Virtual Account',
-    icon: '🏦',
+    Icon: Building2,
     color: 'from-purple-500 to-pink-500',
     methods: [
-      { code: 'M2', name: 'Mandiri VA', fee: '+Rp 4.000', icon: '🏛️' },
-      { code: 'I1', name: 'BNI VA', fee: '+Rp 4.000', icon: '🏛️' },
-      { code: 'BR', name: 'BRI VA', fee: '+Rp 4.000', icon: '🏛️' },
-      { code: 'A1', name: 'ATM Bersama', fee: '+Rp 4.000', icon: '🏧' },
+      { code: 'M2', name: 'Mandiri VA', fee: '+Rp 4.000' },
+      { code: 'I1', name: 'BNI VA', fee: '+Rp 4.000' },
+      { code: 'BR', name: 'BRI VA', fee: '+Rp 4.000' },
+      { code: 'A1', name: 'ATM Bersama', fee: '+Rp 4.000' },
     ]
   },
   {
     id: 'ewallet',
     name: 'E-Wallet',
-    icon: '💳',
+    Icon: Wallet,
     color: 'from-green-500 to-emerald-500',
     methods: [
-      { code: 'OV', name: 'OVO', fee: '+1.5%', icon: '🔵' },
-      { code: 'DA', name: 'DANA', fee: '+1.5%', icon: '🔷' },
-      { code: 'SA', name: 'ShopeePay', fee: '+1.5%', icon: '🟠' },
-      { code: 'GJ', name: 'GoPay', fee: '+1.5%', icon: '🔵' },
+      { code: 'OV', name: 'OVO', fee: '+1.5%' },
+      { code: 'DA', name: 'DANA', fee: '+1.5%' },
+      { code: 'SA', name: 'ShopeePay', fee: '+1.5%' },
+      { code: 'GJ', name: 'GoPay', fee: '+1.5%' },
     ]
   },
   {
     id: 'retail',
     name: 'Retail',
-    icon: '🏪',
+    Icon: Store,
     color: 'from-orange-500 to-red-500',
     methods: [
-      { code: 'IR', name: 'Indomaret', fee: '+Rp 2.500', icon: '🟢' },
-      { code: 'FT', name: 'Alfamart', fee: '+Rp 2.500', icon: '🔴' },
+      { code: 'IR', name: 'Indomaret', fee: '+Rp 2.500' },
+      { code: 'FT', name: 'Alfamart', fee: '+Rp 2.500' },
     ]
   },
 ];
@@ -258,8 +262,8 @@ export default function CartPage() {
                       key={item.id}
                       className="bg-[#141419] border border-white/10 rounded-2xl p-4 flex gap-4"
                     >
-                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center text-2xl flex-shrink-0">
-                        📱
+                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center flex-shrink-0">
+                        <Smartphone className="w-8 h-8 text-white" />
                       </div>
                       
                       <div className="flex-1 min-w-0">
@@ -365,26 +369,25 @@ export default function CartPage() {
                           className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors"
                         >
                           <div className="flex items-center gap-3">
-                            <span className="text-xl">{group.icon}</span>
+                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                              <group.Icon className="w-4 h-4 text-gray-400" />
+                            </div>
                             <span className="font-medium">{group.name}</span>
                           </div>
-                          <ChevronRight className={`w-5 h-5 transition-transform ${openPaymentGroup === group.id ? 'rotate-90' : ''}`} />
+                          <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${openPaymentGroup === group.id ? 'rotate-90' : ''}`} />
                         </button>
                         
                         {openPaymentGroup === group.id && (
-                          <div className="border-t border-white/10">
+                          <div className="p-2">
                             {group.methods.map((method) => (
                               <button
                                 key={method.code}
                                 onClick={() => setSelectedPayment(method)}
-                                className={`w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-colors ${
-                                  selectedPayment?.code === method.code ? 'bg-red-500/10 border-l-2 border-red-500' : ''
+                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${
+                                  selectedPayment?.code === method.code ? 'bg-red-500/10 border border-red-500/30' : 'hover:bg-white/5'
                                 }`}
                               >
-                                <div className="flex items-center gap-3">
-                                  <span>{method.icon}</span>
-                                  <span className="text-sm">{method.name}</span>
-                                </div>
+                                <span className="text-sm">{method.name}</span>
                                 <span className="text-xs text-gray-400">{method.fee}</span>
                               </button>
                             ))}

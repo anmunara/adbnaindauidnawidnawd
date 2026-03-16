@@ -19,29 +19,32 @@ import {
   Copy,
   Wallet,
   ShoppingCart,
-  ArrowRight
+  ArrowRight,
+  QrCode,
+  Building2,
+  Landmark
 } from 'lucide-react';
 
 const PAYMENT_GROUPS = [
   {
     id: 'qris',
     name: 'QRIS',
-    icon: '📱',
+    Icon: QrCode,
     color: 'from-blue-500 to-cyan-500',
     methods: [
-      { code: 'SQ', name: 'QRIS (All E-Wallet)', fee: '+1%', icon: '💳' },
+      { code: 'SQ', name: 'QRIS (All E-Wallet)', fee: '+1%' },
     ]
   },
   {
     id: 'va',
     name: 'Virtual Account',
-    icon: '🏦',
+    Icon: Building2,
     color: 'from-purple-500 to-pink-500',
     methods: [
-      { code: 'M2', name: 'Mandiri VA', fee: '+Rp 4.000', icon: '🏛️' },
-      { code: 'I1', name: 'BNI VA', fee: '+Rp 4.000', icon: '🏛️' },
-      { code: 'BR', name: 'BRI VA', fee: '+Rp 4.000', icon: '🏛️' },
-      { code: 'A1', name: 'ATM Bersama', fee: '+Rp 4.000', icon: '🏧' },
+      { code: 'M2', name: 'Mandiri VA', fee: '+Rp 4.000' },
+      { code: 'I1', name: 'BNI VA', fee: '+Rp 4.000' },
+      { code: 'BR', name: 'BRI VA', fee: '+Rp 4.000' },
+      { code: 'A1', name: 'ATM Bersama', fee: '+Rp 4.000' },
     ]
   },
 ];
@@ -331,7 +334,9 @@ export default function ProductPage() {
                               className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 transition-colors"
                             >
                               <div className="flex items-center gap-3">
-                                <span className="text-2xl">{group.icon}</span>
+                                <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                                  <group.Icon className="w-4 h-4 text-gray-400" />
+                                </div>
                                 <span className="font-medium">{group.name}</span>
                               </div>
                               <ChevronRight 
@@ -354,7 +359,9 @@ export default function ProductPage() {
                                           ? 'border-red-500 bg-red-500/10' 
                                           : 'border-white/10 bg-white/5 hover:border-white/20'}`}
                                     >
-                                      <span className="text-xl">{method.icon}</span>
+                                      <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
+                                        <Landmark className="w-4 h-4 text-gray-400" />
+                                      </div>
                                       <div className="flex-1 text-left">
                                         <p className="font-medium text-sm">{method.name}</p>
                                         <p className="text-xs text-gray-500">Fee {method.fee}</p>
