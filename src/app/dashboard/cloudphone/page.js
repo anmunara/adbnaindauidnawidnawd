@@ -192,10 +192,11 @@ export default function CloudphoneManager() {
                 if (selectedType) fetchCodes(selectedType.id);
                 toast.success(force ? "Code force deleted" : "Code deleted successfully");
             } else if (data.isUsed && !force) {
-                // Code is sold, ask for confirmation
-                if (confirm(`Code has been sold to ${data.soldTo}. Force delete anyway?`)) {
+                // Code is sold, ask for confirmation (no toast, just native confirm)
+                if (confirm(`Code sudah terjual. Hapus paksa?`)) {
                     await handleDeleteCode(id, true);
                 }
+                // Don't show error toast when asking for confirmation
             } else {
                 toast.error(data.message || 'Failed to delete code');
             }
