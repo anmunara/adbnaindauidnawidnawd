@@ -72,6 +72,8 @@ export async function POST(req) {
 
         const { codeId } = body;
 
+        console.log(`[Admin Delete Code] Request received:`, { codeId, user: session.user.email });
+
         // Validation
         if (!codeId) {
             return NextResponse.json(
@@ -80,7 +82,7 @@ export async function POST(req) {
             );
         }
 
-        if (typeof codeId !== 'string' || codeId.length < 5 || codeId.length > 50) {
+        if (typeof codeId !== 'string' || codeId.length < 1 || codeId.length > 100) {
             return NextResponse.json(
                 { success: false, message: 'Invalid Code ID format' },
                 { status: 400 }

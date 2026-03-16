@@ -72,6 +72,8 @@ export async function POST(req) {
 
         const { typeId } = body;
 
+        console.log(`[Admin Delete Type] Request received:`, { typeId, user: session.user.email });
+
         // Validation
         if (!typeId) {
             return NextResponse.json(
@@ -80,7 +82,7 @@ export async function POST(req) {
             );
         }
 
-        if (typeof typeId !== 'string' || typeId.length < 5 || typeId.length > 50) {
+        if (typeof typeId !== 'string' || typeId.length < 1 || typeId.length > 100) {
             return NextResponse.json(
                 { success: false, message: 'Invalid Type ID format' },
                 { status: 400 }
