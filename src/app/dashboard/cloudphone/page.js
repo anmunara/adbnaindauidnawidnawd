@@ -175,10 +175,10 @@ export default function CloudphoneManager() {
         }
     };
 
-    const handleDeleteCode = async (force = false) => {
+    const handleDeleteCode = async () => {
         if (!codeToDelete) return;
         const id = codeToDelete;
-        console.log('[Delete Code] Attempting to delete:', id, 'force:', force);
+        console.log('[Delete Code] Attempting to delete:', id);
         setLoading(true);
         try {
             const res = await fetch('/api/admin/codes/delete', {
@@ -186,7 +186,7 @@ export default function CloudphoneManager() {
                 headers: { 
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ codeId: id, force })
+                body: JSON.stringify({ codeId: id })
             });
             console.log('[Delete Code] Response status:', res.status);
             const data = await res.json();
@@ -195,22 +195,15 @@ export default function CloudphoneManager() {
             if (data.success) {
                 // Always refresh codes regardless of selectedType
                 await fetchCodes(selectedType?.id || null);
-                toast.success(force ? "Code force deleted" : "Code deleted successfully");
+                toast.success("Code deleted successfully");
                 setDeleteDialogOpen(false);
                 setCodeToDelete(null);
-                return { success: true };
-            } else if (data.isUsed && !force) {
-                // Code is sold but user already confirmed in AlertDialog, so force delete
-                console.log('[Delete Code] Code is sold, retrying with force=true');
-                return await handleDeleteCode(true);
             } else {
                 toast.error(data.message || 'Failed to delete code');
-                return { success: false, error: data.message };
             }
         } catch (error) {
             console.error("[Delete Code] Error:", error);
             toast.error(`Failed to delete code: ${error.message}`);
-            return { success: false, error: error.message };
         } finally {
             setLoading(false);
         }
@@ -907,7 +900,7 @@ export default function CloudphoneManager() {
                             <Button 
                                 variant="solid" 
                                 color="red" 
-                                onClick={() => handleDeleteCode(false)}
+                                onClick={() => handleDeleteCode()}
                                 disabled={loading}
                             >
                                 {loading ? "Deleting..." : "Delete"}

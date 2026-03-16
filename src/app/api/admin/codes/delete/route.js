@@ -75,20 +75,8 @@ export async function POST(req) {
         const codeData = codeDoc.data();
         console.log('[Delete Code] Code data:', { isUsed: codeData.isUsed, soldTo: codeData.soldTo });
 
-        // Prevent deleting already used codes (unless force=true)
-        if (codeData.isUsed === true && !force) {
-            return NextResponse.json(
-                { 
-                    success: false, 
-                    message: 'Code has been sold. Use force delete if you really want to delete it.',
-                    isUsed: true,
-                    soldTo: codeData.soldTo || 'unknown'
-                },
-                { status: 400 }
-            );
-        }
-
         // Delete using Admin SDK (bypasses security rules)
+        // Admin can delete any code, confirmation is handled by frontend AlertDialog
         await adminDb.collection('redeem_codes').doc(codeId).delete();
 
         console.log(`[Delete Code] Success: ${codeId} (force=${!!force})`);
