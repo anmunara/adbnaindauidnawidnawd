@@ -16,15 +16,15 @@ export async function middleware(req) {
         }
     }
 
-    // Build per-request CSP nonce
-    const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
-
-    // CSP: nonce-based for scripts so XSS can't execute injected inline scripts.
-    // 'strict-dynamic' lets scripts loaded by trusted nonced bootstrap load
-    // their own deps without enumerating every host.
+    // CSP without per-request nonce: nonces require dynamic rendering, but most
+    // pages here are statically prerendered, so the cached HTML never carries a
+    // matching nonce and 'strict-dynamic' would block every script. We allow
+    // 'unsafe-inline'/'unsafe-eval' for scripts (needed by Next.js hydration
+    // and dev tooling) and rely on other defenses (input validation, output
+    // escaping, server-side authz) to mitigate XSS.
     const cspHeader = `
         default-src 'self';
-        script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://apis.google.com https://www.googletagmanager.com;
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.googletagmanager.com;
         style-src 'self' 'unsafe-inline';
         img-src 'self' blob: data: https://*.cloudhost.id https://*.contabostorage.com https://abahcode.com https://upload.wikimedia.org https://api.qrserver.com https://placehold.co https://images.unsplash.com https://www.googletagmanager.com;
         font-src 'self';
@@ -37,11 +37,7 @@ export async function middleware(req) {
         upgrade-insecure-requests;
     `.replace(/\s{2,}/g, ' ').trim();
 
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set('x-nonce', nonce);
-    requestHeaders.set('Content-Security-Policy', cspHeader);
-
-    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    const response = NextResponse.next();
 
     response.headers.set('Content-Security-Policy', cspHeader);
     response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
