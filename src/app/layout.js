@@ -1,32 +1,36 @@
-import "@radix-ui/themes/styles.css";
 import "./globals.css";
 import { Providers } from "./Providers";
-import { Theme } from "@radix-ui/themes";
+import { Toaster } from "sonner";
 
 export const viewport = {
-  themeColor: "#0f0c29",
+  themeColor: "#0A0A0F",
   width: "device-width",
   initialScale: 1,
 };
 
 export const metadata = {
-  title: "Login Page",
-  description: "Simple clean login landing page",
+  title: "KingBlox — Premium Digital Marketplace",
+  description: "Premium cloud phone & digital products. Fast delivery, secure transactions, 24/7 support.",
   openGraph: {
-    title: "Login Page",
-    description: "Simple clean login landing page",
+    title: "KingBlox — Premium Digital Marketplace",
+    description: "Premium cloud phone & digital products. Fast delivery, secure transactions, 24/7 support.",
     type: "website",
   },
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased min-h-screen bg-background text-foreground">
         <Providers>
-          <Theme appearance="dark" accentColor="violet" panelBackground="translucent" radius="large">
-            {children}
-          </Theme>
+          {children}
+          <Toaster
+            position="top-center"
+            theme="system"
+            toastOptions={{
+              className: "glass-strong border-border",
+            }}
+          />
         </Providers>
       </body>
     </html>

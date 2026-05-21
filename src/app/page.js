@@ -1,344 +1,471 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Search, Zap, Shield, Clock, Headphones, ChevronRight, Star, Package, Truck, CheckCircle } from 'lucide-react';
+import Image from 'next/image';
+import {
+    Sparkles, Zap, Shield, Clock, Star, ArrowRight, Cloud, Smartphone,
+    CheckCircle, Cpu, Lock, Headphones, TrendingUp, Play, ChevronRight,
+    Gamepad2, Users, Award, Rocket
+} from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-
-const PRODUCTS = [
-  {
-    slug: 'redfinger',
-    name: 'Redfinger Cloud Phone',
-    category: 'Cloud Phone',
-    image: '/redfinger-icon.png',
-    description: 'Cloud Phone Android 24/7 online. Solusi terbaik untuk bot, farming game, & multi-account.',
-    badge: 'Best Seller',
-    price: 'Rp 19.000',
-    features: ['Android 10/11', 'RAM 2-8GB', '24/7 Online', 'Instant Setup']
-  },
-];
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Container } from '@/components/ui/container';
+import { Section, SectionHeader } from '@/components/ui/section';
+import { AnimatedBg } from '@/components/ui/animated-bg';
+import { Spotlight } from '@/components/ui/spotlight';
+import { cn } from '@/lib/utils';
 
 const FEATURES = [
-  { icon: Shield, title: 'Jaminan Aman', desc: 'Transaksi terenkripsi & bergaransi 100%' },
-  { icon: Zap, title: 'Proses Otomatis', desc: 'Pengiriman instan kurang dari 1 menit' },
-  { icon: Clock, title: 'Support 24/7', desc: 'Tim support siap membantu kapan saja' },
-  { icon: Truck, title: 'Delivery Cepat', desc: 'Kode langsung dikirim ke email/WhatsApp' },
+    {
+        icon: Zap,
+        title: 'Pengiriman Instan',
+        desc: 'Kode dikirim otomatis kurang dari 1 menit setelah pembayaran berhasil.',
+        gradient: 'from-amber-500/20 to-orange-500/20',
+        iconColor: 'text-amber-500'
+    },
+    {
+        icon: Shield,
+        title: 'Transaksi Aman',
+        desc: 'Pembayaran terenkripsi dengan garansi 100% atau uang kembali.',
+        gradient: 'from-emerald-500/20 to-teal-500/20',
+        iconColor: 'text-emerald-500'
+    },
+    {
+        icon: Clock,
+        title: 'Support 24/7',
+        desc: 'Tim support profesional selalu siap membantu kapan pun.',
+        gradient: 'from-blue-500/20 to-cyan-500/20',
+        iconColor: 'text-blue-500'
+    },
+    {
+        icon: Award,
+        title: 'Harga Terbaik',
+        desc: 'Garansi harga termurah dengan kualitas premium di kelasnya.',
+        gradient: 'from-purple-500/20 to-pink-500/20',
+        iconColor: 'text-purple-500'
+    },
+];
+
+const STATS = [
+    { value: '50K+', label: 'Pelanggan Aktif', icon: Users },
+    { value: '99.9%', label: 'Uptime Server', icon: TrendingUp },
+    { value: '<1m', label: 'Waktu Delivery', icon: Rocket },
+    { value: '4.9/5', label: 'Rating Pengguna', icon: Star },
 ];
 
 const TESTIMONIALS = [
-  { name: 'Ahmad R.', text: 'Pelayanan cepat dan aman. Langsung terima kode setelah bayar!', rating: 5 },
-  { name: 'Siti M.', text: 'Harga paling murah se-Indonesia. Sudah langganan 3 bulan.', rating: 5 },
-  { name: 'Budi K.', text: 'Supportnya responsif banget. Cloud phonenya juga stabil.', rating: 5 },
+    {
+        name: 'Ahmad Rifqi',
+        role: 'Pro Gamer',
+        text: 'Cloud phone yang stabil banget, cocok buat farming game 24/7. Belum pernah ada masalah!',
+        rating: 5,
+        avatar: 'AR'
+    },
+    {
+        name: 'Siti Maulida',
+        role: 'Content Creator',
+        text: 'Pelayanan super cepat, harga termurah se-Indonesia. Sudah langganan 6 bulan tanpa masalah.',
+        rating: 5,
+        avatar: 'SM'
+    },
+    {
+        name: 'Budi Kurniawan',
+        role: 'Mobile Developer',
+        text: 'Support tim sangat responsif dan profesional. Cloud phonenya bekerja sempurna untuk testing.',
+        rating: 5,
+        avatar: 'BK'
+    },
 ];
 
-export default function Home() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [scrolled, setScrolled] = useState(false);
+function ParallaxImage() {
+    const ref = useRef(null);
+    const [offset, setOffset] = useState(0);
 
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    useEffect(() => {
+        const handle = () => {
+            if (!ref.current) return;
+            const rect = ref.current.getBoundingClientRect();
+            const center = rect.top + rect.height / 2 - window.innerHeight / 2;
+            setOffset(center * -0.08);
+        };
+        window.addEventListener('scroll', handle, { passive: true });
+        handle();
+        return () => window.removeEventListener('scroll', handle);
+    }, []);
 
-  return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white overflow-x-hidden">
-      <Navbar />
-
-      {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center justify-center pt-20">
-        {/* Background Effects */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-red-600/20 rounded-full blur-[150px]" />
-          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[150px]" />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0f]/50 to-[#0a0a0f]" />
-        </div>
-
-        <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            {/* Left Content */}
-            <div className="text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm mb-6">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-sm text-gray-300">Server Operational</span>
-              </div>
-
-              <h1 className="text-5xl lg:text-7xl font-bold leading-tight mb-6">
-                <span className="bg-gradient-to-r from-white via-gray-200 to-gray-400 bg-clip-text text-transparent">
-                  Cloud Phone
-                </span>
-                <br />
-                <span className="bg-gradient-to-r from-red-500 to-amber-500 bg-clip-text text-transparent">
-                  Termurah
-                </span>
-              </h1>
-
-              <p className="text-lg text-gray-400 mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                Layanan cloud phone & game top-up terpercaya dengan harga terbaik. 
-                Proses otomatis 24/7, garansi uang kembali.
-              </p>
-
-              {/* Search Box */}
-              <div className="relative max-w-md mx-auto lg:mx-0 mb-8">
-                <div className="absolute inset-0 bg-gradient-to-r from-red-600 to-amber-600 rounded-2xl blur opacity-20" />
-                <div className="relative flex items-center bg-[#141419] border border-white/10 rounded-2xl p-2">
-                  <Search className="w-5 h-5 text-gray-500 ml-4" />
-                  <input
-                    type="text"
-                    placeholder="Cari produk..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-white placeholder-gray-500"
-                  />
-                  <button className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 rounded-xl font-semibold transition-all duration-300">
-                    Cari
-                  </button>
+    return (
+        <div ref={ref} className="relative w-full h-full flex items-center justify-center">
+            <div
+                style={{ transform: `translateY(${offset}px)` }}
+                className="relative w-40 h-40 sm:w-52 sm:h-52 md:w-64 md:h-64 transition-transform duration-100"
+            >
+                <div className="absolute inset-0 bg-brand-500 blur-[80px] opacity-50 animate-pulse" />
+                <div className="relative w-full h-full glass-strong rounded-3xl flex items-center justify-center shadow-glow-lg animate-float">
+                    <Image src="/redfinger-icon.png" alt="Cloud Phone" width={140} height={140} className="relative z-10 w-[60%] h-auto" />
                 </div>
-              </div>
-
-              {/* Stats */}
-              <div className="flex flex-wrap justify-center lg:justify-start gap-8">
-                {[
-                  { value: '10K+', label: 'Customers' },
-                  { value: '99%', label: 'Uptime' },
-                  { value: '4.9', label: 'Rating' },
-                ].map((stat, i) => (
-                  <div key={i} className="text-center">
-                    <div className="text-2xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                      {stat.value}
-                    </div>
-                    <div className="text-sm text-gray-500">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
+                {/* Floating mini cards */}
+                <div className="absolute -top-3 -right-3 sm:-top-4 sm:-right-4 glass-strong px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl shadow-lg flex items-center gap-2 animate-float" style={{ animationDelay: '0.5s' }}>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] sm:text-xs font-semibold">Online 24/7</span>
+                </div>
+                <div className="absolute -bottom-2 -left-4 sm:-left-6 glass-strong px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl shadow-lg flex items-center gap-2 animate-float" style={{ animationDelay: '1s' }}>
+                    <Zap className="w-3 h-3 text-amber-500" />
+                    <span className="text-[10px] sm:text-xs font-semibold">Instant Setup</span>
+                </div>
             </div>
-
-            {/* Right Content - Product Card */}
-            <div className="hidden lg:block relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-red-600/30 to-amber-600/30 rounded-3xl blur-3xl" />
-              <div className="relative bg-gradient-to-br from-[#1a1a24] to-[#12121a] border border-white/10 rounded-3xl p-8 backdrop-blur-xl">
-                <div className="relative h-64 rounded-2xl overflow-hidden mb-6 bg-[#1a1a2e]">
-                  <img
-                    src="/redfinger-icon.png"
-                    alt="Cloud Phone"
-                    className="w-full h-full object-contain p-4"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#12121a] via-transparent to-transparent" />
-                  <div className="absolute top-4 left-4 px-3 py-1 bg-red-600 rounded-full text-xs font-bold">
-                    POPULAR
-                  </div>
-                </div>
-                <h3 className="text-2xl font-bold mb-2">Redfinger Cloud Phone</h3>
-                <p className="text-gray-400 mb-4">Android 24/7 Online • Instant Setup</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-3xl font-bold text-amber-400">Rp 19.000</span>
-                  <Link
-                    href="/product/redfinger"
-                    className="flex items-center gap-2 px-6 py-3 bg-white text-black rounded-xl font-semibold hover:bg-gray-200 transition-all"
-                  >
-                    Beli <ChevronRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-      </section>
+    );
+}
 
-      {/* Trust Badges */}
-      <section className="py-12 border-y border-white/5">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {FEATURES.map((feature, i) => (
-              <div key={i} className="flex items-start gap-4 group">
-                <div className="p-3 rounded-xl bg-white/5 border border-white/10 group-hover:border-red-500/50 transition-all">
-                  <feature.icon className="w-6 h-6 text-red-500" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-white mb-1">{feature.title}</h4>
-                  <p className="text-sm text-gray-500">{feature.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+function HeroSection() {
+    return (
+        <Section className="pt-24 sm:pt-28 md:pt-40 pb-12 md:pb-20 lg:min-h-screen flex items-center">
+            <AnimatedBg variant="orbs" />
 
-      {/* Products Section */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          {/* Section Header */}
-          <div className="text-center mb-16">
-            <span className="inline-block px-4 py-2 rounded-full bg-red-600/10 border border-red-600/20 text-red-400 text-sm font-medium mb-4">
-              Produk Unggulan
-            </span>
-            <h2 className="text-4xl lg:text-5xl font-bold mb-4">
-              Pilihan <span className="text-red-500">Terbaik</span>
-            </h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">
-              Solusi cloud phone berkualitas tinggi dengan harga termurah di Indonesia
-            </p>
-          </div>
+            <Container>
+                <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                    {/* Left Content */}
+                    <div className="lg:col-span-7 space-y-6 md:space-y-8 animate-fade-in-up">
+                        <Badge variant="glass" className="px-3 py-1.5 sm:px-4">
+                            <Sparkles className="w-3 h-3 text-brand-500" />
+                            <span className="font-semibold tracking-wide text-[11px] sm:text-xs">#1 Cloud Phone Marketplace</span>
+                        </Badge>
 
-          {/* Product Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {PRODUCTS.map((product) => (
-              <Link
-                key={product.slug}
-                href={`/product/${product.slug}`}
-                className="group relative bg-gradient-to-br from-[#141419] to-[#0f0f13] border border-white/10 rounded-3xl overflow-hidden hover:border-red-500/30 transition-all duration-500"
-              >
-                {/* Image */}
-                <div className="relative h-56 overflow-hidden bg-[#1a1a2e]">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-contain p-6 group-hover:scale-110 transition-transform duration-700"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0f0f13] via-transparent to-transparent" />
-                  {product.badge && (
-                    <div className="absolute top-4 left-4 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full text-xs font-bold text-white">
-                      ⭐ {product.badge}
+                        <div className="space-y-3 md:space-y-4">
+                            <h1 className="text-[1.875rem] xs:text-[2.25rem] sm:text-5xl md:text-6xl lg:text-7xl font-display font-black tracking-tight leading-[1.05] text-balance">
+                                Premium{' '}
+                                <span className="gradient-text">Cloud Phone</span>{' '}
+                                Untuk Para{' '}
+                                <span className="relative inline-block">
+                                    <span className="relative z-10">Pro</span>
+                                    <span className="absolute bottom-1 sm:bottom-2 left-0 right-0 h-2 sm:h-3 bg-brand-500/30 -z-0 -skew-x-12" />
+                                </span>
+                            </h1>
+                            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl text-balance">
+                                Solusi cloud phone Android 24/7 untuk gaming, automation, dan multi-account.
+                                Setup instan, harga termurah, garansi 100%.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4">
+                            <Link href="/product/redfinger" className="w-full sm:w-auto">
+                                <Button variant="primary" size="xl" className="group w-full sm:w-auto">
+                                    <Rocket className="w-5 h-5" />
+                                    Mulai Sekarang
+                                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                                </Button>
+                            </Link>
+                            <Link href="/cara-pemesanan" className="w-full sm:w-auto">
+                                <Button variant="glass" size="xl" className="w-full sm:w-auto">
+                                    <Play className="w-4 h-4" />
+                                    Cara Kerjanya
+                                </Button>
+                            </Link>
+                        </div>
+
+                        {/* Trust indicators */}
+                        <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2 sm:pt-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex -space-x-2">
+                                    {['A', 'B', 'C', 'D'].map((letter, i) => (
+                                        <div
+                                            key={i}
+                                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 border-2 border-background flex items-center justify-center text-[10px] sm:text-xs font-bold text-white"
+                                        >
+                                            {letter}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-1">
+                                        {[1,2,3,4,5].map(i => (
+                                            <Star key={i} className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">50,000+ Pengguna Aktif</p>
+                                </div>
+                            </div>
+                            <div className="hidden sm:block h-10 w-px bg-border" />
+                            <div className="flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                <span className="text-sm text-muted-foreground">Garansi 100%</span>
+                            </div>
+                        </div>
                     </div>
-                  )}
-                  <div className="absolute top-4 right-4 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-medium border border-white/10">
-                    {product.category}
-                  </div>
+
+                    {/* Right Visual */}
+                    <div className="lg:col-span-5 h-[280px] sm:h-[360px] md:h-[420px] lg:h-[500px] relative animate-fade-in" style={{ animationDelay: '0.3s' }}>
+                        <ParallaxImage />
+                    </div>
                 </div>
+            </Container>
+        </Section>
+    );
+}
 
-                {/* Content */}
-                <div className="p-6">
-                  <h3 className="text-xl font-bold mb-2 group-hover:text-red-400 transition-colors">
-                    {product.name}
-                  </h3>
-                  <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                    {product.description}
-                  </p>
-
-                  {/* Features */}
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {product.features.map((feat, i) => (
-                      <span key={i} className="px-2 py-1 bg-white/5 rounded text-xs text-gray-400 border border-white/5">
-                        {feat}
-                      </span>
+function StatsSection() {
+    return (
+        <Section className="py-16 border-y border-border bg-surface/30">
+            <Container>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                    {STATS.map((stat, i) => (
+                        <div
+                            key={i}
+                            className="text-center group"
+                            style={{ animationDelay: `${i * 100}ms` }}
+                        >
+                            <div className="inline-flex w-12 h-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 items-center justify-center mb-3 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300">
+                                <stat.icon className="w-5 h-5 text-brand-500" />
+                            </div>
+                            <div className="text-3xl md:text-4xl font-display font-black gradient-text mb-1">
+                                {stat.value}
+                            </div>
+                            <div className="text-sm text-muted-foreground font-medium">{stat.label}</div>
+                        </div>
                     ))}
-                  </div>
+                </div>
+            </Container>
+        </Section>
+    );
+}
 
-                  {/* Price & CTA */}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                    <div>
-                      <span className="text-xs text-gray-500">Mulai dari</span>
-                      <div className="text-2xl font-bold text-amber-400">{product.price}</div>
+function FeaturesBentoSection() {
+    return (
+        <Section>
+            <AnimatedBg variant="grid" />
+            <Container>
+                <SectionHeader
+                    eyebrow="Keunggulan Kami"
+                    title="Kenapa Pilih KingBlox?"
+                    description="Platform digital paling tepercaya dengan teknologi terdepan dan layanan premium."
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                    {FEATURES.map((feature, i) => (
+                        <Spotlight key={i} className="rounded-2xl">
+                            <Card
+                                variant="default"
+                                hover="lift"
+                                padding="lg"
+                                className="h-full relative overflow-hidden"
+                                style={{ animationDelay: `${i * 100}ms` }}
+                            >
+                                <div className={cn(
+                                    "absolute -top-20 -right-20 w-40 h-40 rounded-full blur-3xl opacity-50",
+                                    `bg-gradient-to-br ${feature.gradient}`
+                                )} />
+                                <div className="relative">
+                                    <div className={cn(
+                                        "w-14 h-14 rounded-2xl glass-strong flex items-center justify-center mb-5",
+                                        feature.iconColor
+                                    )}>
+                                        <feature.icon className="w-6 h-6" />
+                                    </div>
+                                    <h3 className="text-xl font-display font-bold mb-2">
+                                        {feature.title}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground leading-relaxed">
+                                        {feature.desc}
+                                    </p>
+                                </div>
+                            </Card>
+                        </Spotlight>
+                    ))}
+                </div>
+            </Container>
+        </Section>
+    );
+}
+
+function ProductShowcaseSection() {
+    return (
+        <Section className="bg-surface/30">
+            <Container>
+                <SectionHeader
+                    eyebrow="Produk Unggulan"
+                    title="Cloud Phone Premium"
+                    description="Pengalaman Android di cloud dengan performa maksimal & uptime 99.9%."
+                />
+
+                <Card variant="glass" padding="none" className="overflow-hidden">
+                    <div className="grid lg:grid-cols-2 gap-0">
+                        {/* Visual */}
+                        <div className="relative bg-gradient-to-br from-brand-500/10 via-brand-600/5 to-transparent p-12 lg:p-16 flex items-center justify-center min-h-[400px]">
+                            <div className="absolute inset-0 grid-bg opacity-50" />
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-brand-500 blur-[100px] opacity-40" />
+                                <Image
+                                    src="/redfinger-icon.png"
+                                    alt="Redfinger"
+                                    width={240}
+                                    height={240}
+                                    className="relative animate-float drop-shadow-2xl"
+                                />
+                            </div>
+                            <Badge variant="gradient" className="absolute top-6 left-6 shadow-glow-sm">
+                                <Sparkles className="w-3 h-3" />
+                                Best Seller
+                            </Badge>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-8 lg:p-12 flex flex-col justify-center space-y-6">
+                            <div className="space-y-3">
+                                <div className="inline-flex items-center gap-2 text-xs font-semibold text-brand-500 uppercase tracking-wider">
+                                    <Cloud className="w-4 h-4" />
+                                    Cloud Phone Service
+                                </div>
+                                <h3 className="text-3xl md:text-4xl font-display font-bold">
+                                    Redfinger Cloud Phone
+                                </h3>
+                                <p className="text-muted-foreground leading-relaxed">
+                                    Android virtual di cloud yang dapat diakses 24/7 dari perangkat apapun.
+                                    Sempurna untuk gaming, automation, multi-account, dan farming.
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { icon: Cpu, label: 'Android 10/11' },
+                                    { icon: Smartphone, label: 'RAM 2-8GB' },
+                                    { icon: Clock, label: '24/7 Online' },
+                                    { icon: Zap, label: 'Instant Setup' },
+                                ].map((feat, i) => (
+                                    <div key={i} className="flex items-center gap-2 p-3 rounded-xl glass-light">
+                                        <feat.icon className="w-4 h-4 text-brand-500" />
+                                        <span className="text-sm font-medium">{feat.label}</span>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex items-end justify-between pt-4 border-t border-border">
+                                <div>
+                                    <p className="text-xs text-muted-foreground mb-1">Mulai dari</p>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-4xl font-display font-black gradient-text">Rp 19.000</span>
+                                        <span className="text-sm text-muted-foreground">/bulan</span>
+                                    </div>
+                                </div>
+                                <Link href="/product/redfinger">
+                                    <Button variant="primary" size="lg" className="group">
+                                        Beli Sekarang
+                                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                                    </Button>
+                                </Link>
+                            </div>
+                        </div>
                     </div>
-                    <button className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-medium transition-all group-hover:gap-3">
-                      Pesan <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
+                </Card>
+            </Container>
+        </Section>
+    );
+}
+
+function TestimonialsSection() {
+    return (
+        <Section>
+            <Container>
+                <SectionHeader
+                    eyebrow="Testimoni"
+                    title="Apa Kata Mereka?"
+                    description="Ribuan pelanggan puas dengan layanan KingBlox setiap harinya."
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {TESTIMONIALS.map((t, i) => (
+                        <Card
+                            key={i}
+                            variant="default"
+                            hover="lift"
+                            padding="lg"
+                            className="relative group"
+                        >
+                            <div className="absolute top-6 right-6 text-6xl font-display font-black text-brand-500/10 leading-none select-none">"</div>
+                            <div className="flex items-center gap-1 mb-4">
+                                {Array.from({ length: t.rating }).map((_, j) => (
+                                    <Star key={j} className="w-4 h-4 fill-amber-500 text-amber-500" />
+                                ))}
+                            </div>
+                            <p className="text-foreground leading-relaxed mb-6 relative">
+                                "{t.text}"
+                            </p>
+                            <div className="flex items-center gap-3 pt-4 border-t border-border">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white font-bold text-sm">
+                                    {t.avatar}
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-foreground text-sm">{t.name}</p>
+                                    <p className="text-xs text-muted-foreground">{t.role}</p>
+                                </div>
+                            </div>
+                        </Card>
+                    ))}
                 </div>
-              </Link>
-            ))}
+            </Container>
+        </Section>
+    );
+}
 
-            {/* Coming Soon Card */}
-            <div className="relative bg-gradient-to-br from-[#141419] to-[#0f0f13] border border-dashed border-white/20 rounded-3xl p-8 flex flex-col items-center justify-center text-center min-h-[400px]">
-              <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4">
-                <Package className="w-8 h-8 text-gray-500" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-400 mb-2">Coming Soon</h3>
-              <p className="text-sm text-gray-600">Produk baru akan segera hadir</p>
-            </div>
-          </div>
+function CTASection() {
+    return (
+        <Section className="pb-32">
+            <Container>
+                <Card variant="gradient" padding="none" className="relative overflow-hidden border-brand-500/20">
+                    <div className="absolute inset-0">
+                        <div className="absolute -top-20 -left-20 w-96 h-96 bg-brand-500 rounded-full blur-[120px] opacity-20" />
+                        <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-brand-600 rounded-full blur-[120px] opacity-20" />
+                        <div className="absolute inset-0 grid-bg opacity-30" />
+                    </div>
+                    <div className="relative p-12 md:p-16 lg:p-20 text-center">
+                        <Badge variant="glass" className="mb-6">
+                            <Gamepad2 className="w-3 h-3 text-brand-500" />
+                            <span>Untuk Gamers & Pro</span>
+                        </Badge>
+                        <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-black tracking-tight mb-6 text-balance">
+                            Siap Naik Level?
+                        </h2>
+                        <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8 text-balance">
+                            Bergabung bersama ribuan gamers & profesional yang sudah merasakan
+                            kemudahan KingBlox untuk kebutuhan digital mereka.
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-4">
+                            <Link href="/product/redfinger">
+                                <Button variant="primary" size="xl" className="group">
+                                    <Sparkles className="w-5 h-5" />
+                                    Coba Sekarang
+                                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                                </Button>
+                            </Link>
+                            <Link href="/cara-pemesanan">
+                                <Button variant="glass" size="xl">
+                                    Pelajari Lebih Lanjut
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+                </Card>
+            </Container>
+        </Section>
+    );
+}
+
+export default function Home() {
+    return (
+        <div className="min-h-screen bg-background text-foreground">
+            <Navbar />
+            <main>
+                <HeroSection />
+                <StatsSection />
+                <FeaturesBentoSection />
+                <ProductShowcaseSection />
+                <TestimonialsSection />
+                <CTASection />
+            </main>
+            <Footer />
         </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="py-24 bg-[#08080c]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">
-              Cara <span className="text-red-500">Pemesanan</span>
-            </h2>
-            <p className="text-gray-400">Proses mudah dalam 3 langkah</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { step: '01', title: 'Pilih Produk', desc: 'Pilih paket cloud phone yang sesuai kebutuhan Anda' },
-              { step: '02', title: 'Lakukan Pembayaran', desc: 'Bayar dengan metode pembayaran favorit Anda' },
-              { step: '03', title: 'Terima Kode', desc: 'Kode redeem akan dikirim otomatis ke email/WhatsApp' },
-            ].map((item, i) => (
-              <div key={i} className="relative text-center">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-red-600/20 to-amber-600/20 border border-red-500/20 flex items-center justify-center">
-                  <span className="text-2xl font-bold bg-gradient-to-r from-red-500 to-amber-500 bg-clip-text text-transparent">
-                    {item.step}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold mb-2">{item.title}</h3>
-                <p className="text-gray-400">{item.desc}</p>
-                {i < 2 && (
-                  <div className="hidden md:block absolute top-10 left-[60%] w-full h-px bg-gradient-to-r from-red-500/50 to-transparent" />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">
-              Testimoni <span className="text-red-500">Pelanggan</span>
-            </h2>
-            <p className="text-gray-400">Apa kata mereka tentang kami</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((testi, i) => (
-              <div key={i} className="bg-[#141419] border border-white/10 rounded-2xl p-6">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(testi.rating)].map((_, j) => (
-                    <Star key={j} className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <p className="text-gray-300 mb-4">&ldquo;{testi.text}&rdquo;</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-600 to-amber-600 flex items-center justify-center font-bold text-sm">
-                    {testi.name[0]}
-                  </div>
-                  <span className="font-medium">{testi.name}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-24">
-        <div className="max-w-5xl mx-auto px-6">
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-red-600 to-red-800 p-12 lg:p-16 text-center">
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.05%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-20" />
-            <div className="relative z-10">
-              <h2 className="text-3xl lg:text-5xl font-bold mb-4">
-                Siap Mulai?
-              </h2>
-              <p className="text-red-100 text-lg mb-8 max-w-2xl mx-auto">
-                Bergabung dengan 10,000+ pengguna yang sudah menggunakan layanan kami
-              </p>
-              <Link
-                href="/product/redfinger"
-                className="inline-flex items-center gap-2 px-8 py-4 bg-white text-red-600 rounded-2xl font-bold text-lg hover:bg-gray-100 transition-all"
-              >
-                Pesan Sekarang <ChevronRight className="w-5 h-5" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <Footer />
-    </div>
-  );
+    );
 }

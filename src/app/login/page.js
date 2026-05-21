@@ -6,12 +6,15 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
+import { Mail, Lock, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { AuthLayout } from '@/components/auth-layout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const router = useRouter();
@@ -22,7 +25,7 @@ export default function Login() {
         setError("");
 
         if (!auth) {
-            setError("Authentication service not configured (missing env vars).");
+            setError("Authentication service not configured.");
             setLoading(false);
             return;
         }
@@ -43,75 +46,92 @@ export default function Login() {
             }
         } catch (err) {
             console.error(err);
-            setError("Email atau Password salah!");
+            setError("Email atau password salah!");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-[var(--body-bg)] flex flex-col">
-            <Navbar />
-            <div className="flex-1 flex items-center justify-center p-4">
-                <div className="dynamic-card p-8 rounded-xl shadow-lg w-full max-w-md bg-[var(--card-bg)] text-[var(--card-text)]">
-                    <h2 className="text-3xl font-bold mb-6 text-center text-[var(--primary-color)]">Selamat Datang</h2>
-                    <p className="text-center opacity-70 mb-8 text-sm">Silakan login untuk mengakses akun Anda.</p>
+        <AuthLayout
+            title="Selamat Datang"
+            subtitle="Masuk untuk melanjutkan ke dashboard KingBlox"
+        >
+            {error && (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20 mb-6 animate-fade-in">
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-500">{error}</p>
+                </div>
+            )}
 
-                    {error && (
-                        <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded mb-4 text-sm text-center">
-                            {error}
-                        </div>
-                    )}
+            <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-semibold mb-2">Email</label>
+                    <Input
+                        type="email"
+                        icon={Mail}
+                        required
+                        placeholder="name@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
+                </div>
 
-                    <form onSubmit={handleLogin}>
-                        <div className="mb-4">
-                            <label className="block text-sm font-bold mb-1 text-gray-100">Email</label>
-                            <input
-                                type="email"
-                                name="email"
-                                required
-                                className="w-full border border-gray-600 bg-black/20 text-white p-3 rounded-lg focus:ring-2 focus:ring-[var(--primary-color)] outline-none transition placeholder-gray-500"
-                                placeholder="name@example.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                            />
-                        </div>
-                        <div className="mb-2">
-                            <label className="block text-sm font-bold mb-1 text-gray-100">Password</label>
-                            <input
-                                type="password"
-                                name="password"
-                                required
-                                className="w-full border border-gray-600 bg-black/20 text-white p-3 rounded-lg focus:ring-2 focus:ring-[var(--primary-color)] outline-none transition placeholder-gray-500"
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="text-right mb-6">
-                            <Link href="/forgot-password" className="text-xs text-[var(--primary-color)] font-bold hover:underline">
-                                Lupa Password?
-                            </Link>
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-[var(--primary-color)] text-white font-bold py-3 rounded-lg hover:bg-[var(--secondary-color)] transition shadow-lg btn-animate disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {loading ? "Memproses..." : "Masuk Sekarang"}
-                        </button>
-                    </form>
-
-                    <div className="mt-6 border-t border-gray-700 pt-6 text-center text-sm text-gray-100">
-                        Belum punya akun? <Link href="/register" className="text-[var(--primary-color)] font-bold hover:underline">
-                            Daftar disini
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                        <label className="text-sm font-semibold">Password</label>
+                        <Link href="/forgot-password" className="text-xs text-brand-500 font-semibold hover:underline">
+                            Lupa Password?
                         </Link>
                     </div>
+                    <div className="relative">
+                        <Input
+                            type={showPassword ? "text" : "password"}
+                            icon={Lock}
+                            required
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="pr-12"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                    </div>
+                </div>
+
+                <Button
+                    type="submit"
+                    variant="primary"
+                    size="lg"
+                    loading={loading}
+                    className="w-full mt-6 group"
+                >
+                    Masuk Sekarang
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </Button>
+            </form>
+
+            <div className="relative my-8">
+                <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs">
+                    <span className="px-4 bg-background text-muted-foreground">atau</span>
                 </div>
             </div>
-            <Footer />
-        </div>
+
+            <p className="text-center text-sm text-muted-foreground">
+                Belum punya akun?{' '}
+                <Link href="/register" className="text-brand-500 font-semibold hover:underline">
+                    Daftar sekarang
+                </Link>
+            </p>
+        </AuthLayout>
     );
 }

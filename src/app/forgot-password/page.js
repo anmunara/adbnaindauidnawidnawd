@@ -4,9 +4,10 @@ import { useState } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import { Mail, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, CheckCircle, AlertCircle, Send } from 'lucide-react';
+import { AuthLayout } from '@/components/auth-layout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function ForgotPassword() {
     const [email, setEmail] = useState("");
@@ -30,7 +31,6 @@ export default function ForgotPassword() {
             await sendPasswordResetEmail(auth, email);
             setSuccess(true);
         } catch (err) {
-            console.error(err);
             if (err.code === 'auth/user-not-found') {
                 setError("Email tidak ditemukan.");
             } else if (err.code === 'auth/invalid-email') {
@@ -43,86 +43,76 @@ export default function ForgotPassword() {
         }
     };
 
-    return (
-        <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
-            <Navbar />
-            <div className="flex-1 flex items-center justify-center p-4">
-                <div className="w-full max-w-md">
-                    {/* Back Link */}
-                    <Link 
-                        href="/login" 
-                        className="inline-flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        <span className="text-sm">Kembali ke Login</span>
-                    </Link>
-
-                    <div className="bg-[#12121a] border border-white/10 rounded-2xl p-8">
-                        {success ? (
-                            <div className="text-center">
-                                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <CheckCircle className="w-8 h-8 text-green-500" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-white mb-2">Email Terkirim!</h2>
-                                <p className="text-gray-400 text-sm mb-6">
-                                    Kami telah mengirimkan link reset password ke <strong className="text-white">{email}</strong>. 
-                                    Silakan cek inbox atau folder spam Anda.
-                                </p>
-                                <Link 
-                                    href="/login"
-                                    className="inline-flex items-center justify-center w-full py-3 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-xl transition-colors"
-                                >
-                                    Kembali ke Login
-                                </Link>
-                            </div>
-                        ) : (
-                            <>
-                                <div className="text-center mb-6">
-                                    <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                                        <Mail className="w-8 h-8 text-red-500" />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-white mb-2">Lupa Password?</h2>
-                                    <p className="text-gray-400 text-sm">
-                                        Masukkan email Anda dan kami akan mengirimkan link untuk reset password.
-                                    </p>
-                                </div>
-
-                                {error && (
-                                    <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl mb-4 text-sm">
-                                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                        <span>{error}</span>
-                                    </div>
-                                )}
-
-                                <form onSubmit={handleSubmit}>
-                                    <div className="mb-6">
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            Email Address
-                                        </label>
-                                        <input
-                                            type="email"
-                                            required
-                                            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:border-red-500/50 focus:outline-none transition-colors"
-                                            placeholder="name@example.com"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <button
-                                        type="submit"
-                                        disabled={loading}
-                                        className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {loading ? "Mengirim..." : "Kirim Link Reset"}
-                                    </button>
-                                </form>
-                            </>
-                        )}
+    if (success) {
+        return (
+            <AuthLayout title="Email Terkirim!" subtitle="Periksa kotak masuk Anda" showBack>
+                <div className="text-center py-4">
+                    <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 animate-scale-in">
+                        <CheckCircle className="w-10 h-10 text-emerald-500" />
                     </div>
+                    <p className="text-muted-foreground mb-8">
+                        Kami telah mengirimkan link reset password ke{' '}
+                        <strong className="text-foreground">{email}</strong>.
+                        Cek inbox atau folder spam Anda.
+                    </p>
+                    <Link href="/login">
+                        <Button variant="primary" size="lg" className="w-full">
+                            Kembali ke Login
+                        </Button>
+                    </Link>
                 </div>
+            </AuthLayout>
+        );
+    }
+
+    return (
+        <AuthLayout
+            title="Lupa Password?"
+            subtitle="Masukkan email Anda untuk reset password"
+            showBack
+        >
+            <div className="w-16 h-16 bg-brand-500/10 rounded-2xl flex items-center justify-center mb-6 mx-auto lg:mx-0">
+                <Mail className="w-7 h-7 text-brand-500" />
             </div>
-            <Footer />
-        </div>
+
+            {error && (
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20 mb-6 animate-fade-in">
+                    <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-500">{error}</p>
+                </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="block text-sm font-semibold mb-2">Email Address</label>
+                    <Input
+                        type="email"
+                        icon={Mail}
+                        required
+                        placeholder="name@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                    />
+                </div>
+
+                <Button
+                    type="submit"
+                    variant="primary"
+                    size="lg"
+                    loading={loading}
+                    className="w-full"
+                >
+                    <Send className="w-4 h-4" />
+                    Kirim Link Reset
+                </Button>
+            </form>
+
+            <p className="text-center text-sm text-muted-foreground mt-8">
+                Ingat password Anda?{' '}
+                <Link href="/login" className="text-brand-500 font-semibold hover:underline">
+                    Kembali ke Login
+                </Link>
+            </p>
+        </AuthLayout>
     );
 }
