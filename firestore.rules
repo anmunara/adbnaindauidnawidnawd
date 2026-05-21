@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// Deploy: firebase deploy --only firestore:rules
+//
+// Threat model: frontend Firebase config is public (NEXT_PUBLIC_FIREBASE_*),
+// so anyone with the API key can attempt Firestore reads/writes via client SDK.
+// These rules deny all writes through the client and restrict reads to the
+// resource owner. All mutations must go through Next.js API routes which use
+// Firebase Admin SDK (bypasses these rules with full privilege).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Product types — name/price/createdAt visible to public so the storefront
+    // can render products. Writes are admin-only via Admin SDK.
+    match /game_types/{typeId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Redeem codes are sensitive inventory data — never readable from client.
+    // Allocation happens server-side in the payment callback transaction.
+    match /redeem_codes/{codeId} {
+      allow read, write: if false;
+    }
+
+    // Orders & transactions — owner can read their own doc to render the
+    // order detail page. No client writes (status transitions happen in
+    // signed Duitku callbacks).
+    match /orders/{orderId} {
+      allow read: if request.auth != null
+        && (resource.data.userId == request.auth.uid
+            || resource.data.userId == request.auth.token.email
+            || resource.data.userEmail == request.auth.token.email);
+      allow write: if false;
+    }
+
+    match /transactions/{txId} {
+      allow read: if request.auth != null
+        && (resource.data.userId == request.auth.uid
+            || resource.data.userId == request.auth.token.email
+            || resource.data.userEmail == request.auth.token.email);
+      allow write: if false;
+    }
+
+    // User profile docs — each user can read/update only their own profile,
+    // and only mutable fields (name/whatsapp). Email + role are admin-only.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if false; // creation happens server-side on register
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['name', 'whatsapp', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Default: deny everything not matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

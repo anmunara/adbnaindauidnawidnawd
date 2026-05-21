@@ -1,0 +1,62 @@
+import { NextResponse } from 'next/server';
+import { adminDb } from '@/lib/firebaseAdmin';
+import { requireAdmin } from '@/lib/admin-auth';
+import { assertSameOrigin } from '@/lib/security';
+
+const MAX_PRICE = 100_000_000; // Rp 100 juta sanity cap
+
+function sanitizePrice(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > MAX_PRICE) return null;
+    return Math.floor(n);
+}
+
+export async function POST(req) {
+    const originErr = assertSameOrigin(req);
+    if (originErr) return originErr;
+
+    const auth = await requireAdmin();
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
+    }
+
+    try {
+        let body;
+        try {
+            body = await req.json();
+        } catch {
+            return NextResponse.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
+        }
+
+        const { name, sellingPrice, capitalPrice } = body;
+
+        if (!name || typeof name !== 'string' || name.trim() === '' || name.length > 100) {
+            return NextResponse.json({ success: false, message: 'Invalid type name' }, { status: 400 });
+        }
+
+        const sp = sanitizePrice(sellingPrice);
+        const cp = sanitizePrice(capitalPrice);
+        if (sp === null) {
+            return NextResponse.json({ success: false, message: 'Invalid sellingPrice' }, { status: 400 });
+        }
+        if (cp === null) {
+            return NextResponse.json({ success: false, message: 'Invalid capitalPrice' }, { status: 400 });
+        }
+
+        const docRef = await adminDb.collection('game_types').add({
+            name: name.trim(),
+            sellingPrice: sp,
+            capitalPrice: cp,
+            createdAt: new Date(),
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: 'Type added successfully',
+            typeId: docRef.id,
+        });
+    } catch (error) {
+        console.error('[Add Type] Error:', error);
+        return NextResponse.json({ success: false, message: 'Failed to add type' }, { status: 500 });
+    }
+}

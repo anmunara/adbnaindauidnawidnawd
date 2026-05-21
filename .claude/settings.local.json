@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /tmp/ui-ux-pro-max-skill/ 2>/dev/null || echo \"Clone may have failed, trying alternative location\")",
+      "Bash(find /tmp -name \"skill.json\" -o -name \"SKILL.md\" 2>/dev/null | head -5)",
+      "Bash(ls -la 'C:\\\\Users\\\\lucia\\\\.claude\\\\skills')",
+      "Bash(npm install *)",
+      "Bash(npm list *)",
+      "Bash(npx next *)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ]
+  }
+}
