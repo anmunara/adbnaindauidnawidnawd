@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently --names \"web,bot\" --prefix-colors \"cyan,magenta\" \"next dev\" \"cd discord-bot && node index.js\"",
     "build": "next build",
-    "start": "concurrently --names \"web,bot\" --prefix-colors \"cyan,magenta\" --kill-others-on-fail \"next start\" \"node discord-bot/index.js\"",
+    "start": "concurrently --names \"web,bot\" --prefix-colors \"cyan,magenta\" \"next start\" \"node discord-bot/index.js\"",
     "start:web": "next start",
     "start:bot": "node discord-bot/index.js",
     "lint": "eslint"
