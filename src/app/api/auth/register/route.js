@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { assertSameOrigin } from '@/lib/security';
 
 // Rate limiting: track IPs
 const rateLimitMap = new Map();
@@ -24,6 +25,9 @@ function isRateLimited(ip) {
 
 export async function POST(req) {
     try {
+        const originErr = assertSameOrigin(req);
+        if (originErr) return originErr;
+
         // Rate limiting
         const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
         if (isRateLimited(ip)) {
@@ -70,10 +74,10 @@ export async function POST(req) {
             );
         }
 
-        // Validate password strength
-        if (password.length < 8) {
+        // Validate password strength — must match profile/update rules
+        if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
             return NextResponse.json(
-                { success: false, message: 'Password minimal 8 karakter.' },
+                { success: false, message: 'Password 8-128 karakter.' },
                 { status: 400 }
             );
         }
@@ -83,9 +87,21 @@ export async function POST(req) {
                 { status: 400 }
             );
         }
+        if (!/[a-z]/.test(password)) {
+            return NextResponse.json(
+                { success: false, message: 'Password harus mengandung huruf kecil.' },
+                { status: 400 }
+            );
+        }
         if (!/[0-9]/.test(password)) {
             return NextResponse.json(
                 { success: false, message: 'Password harus mengandung angka.' },
+                { status: 400 }
+            );
+        }
+        if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+            return NextResponse.json(
+                { success: false, message: 'Password harus mengandung karakter spesial.' },
                 { status: 400 }
             );
         }

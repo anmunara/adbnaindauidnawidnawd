@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { assertSameOrigin } from '@/lib/security';
 
 // Rate limiting
 const rateLimitMap = new Map();
@@ -46,7 +47,7 @@ function validateEmail(email) {
 function validatePassword(password) {
     if (!password) return { valid: false, error: 'Password is required' };
     if (typeof password !== 'string') return { valid: false, error: 'Password must be a string' };
-    if (password.length < 8) return { valid: false, error: 'Password must be at least 8 characters' };
+    if (password.length < 8 || password.length > 128) return { valid: false, error: 'Password must be 8-128 characters' };
     if (!/[A-Z]/.test(password)) return { valid: false, error: 'Password must contain at least one uppercase letter' };
     if (!/[a-z]/.test(password)) return { valid: false, error: 'Password must contain at least one lowercase letter' };
     if (!/[0-9]/.test(password)) return { valid: false, error: 'Password must contain at least one number' };
@@ -65,9 +66,12 @@ function validateWhatsApp(whatsapp) {
 
 export async function POST(req) {
     try {
+        const originErr = assertSameOrigin(req);
+        if (originErr) return originErr;
+
         // Rate limiting
-        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-                   req.headers.get('x-real-ip') || 
+        const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+                   req.headers.get('x-real-ip') ||
                    'unknown';
         if (isRateLimited(ip)) {
             return NextResponse.json(
@@ -150,9 +154,26 @@ export async function POST(req) {
             );
         }
 
+        // Detect changes that should invalidate the current session — namely
+        // email and password. After such changes, the JWT still holds the old
+        // claims (incl. an `email` that admin checks rely on), so we tell the
+        // client to sign out and re-authenticate before continuing.
+        const sessionInvalidated =
+            ('email' in updateData && updateData.email !== session.user.email) ||
+            'password' in updateData;
+
         // Update user in Firebase Auth
         if (Object.keys(updateData).length > 0) {
             await adminAuth.updateUser(uid, updateData);
+            // Revoke existing Firebase refresh tokens; combined with frontend signOut
+            // this prevents the old session from continuing to act as the old identity.
+            if (sessionInvalidated) {
+                try {
+                    await adminAuth.revokeRefreshTokens(uid);
+                } catch (e) {
+                    console.error('[Profile Update] revokeRefreshTokens failed:', e);
+                }
+            }
         }
 
         // Update Firestore
@@ -165,41 +186,26 @@ export async function POST(req) {
 
         return NextResponse.json({
             success: true,
-            message: 'Profile updated successfully'
+            message: 'Profile updated successfully',
+            requireReauth: sessionInvalidated,
         });
 
     } catch (error) {
         console.error('Profile update error:', error);
-        
-        // Handle specific Firebase errors
+
         if (error.code === 'auth/email-already-exists') {
-            return NextResponse.json(
-                { success: false, message: 'Email already in use' },
-                { status: 409 }
-            );
+            return NextResponse.json({ success: false, message: 'Email already in use' }, { status: 409 });
         }
         if (error.code === 'auth/invalid-email') {
-            return NextResponse.json(
-                { success: false, message: 'Invalid email format' },
-                { status: 400 }
-            );
+            return NextResponse.json({ success: false, message: 'Invalid email format' }, { status: 400 });
         }
         if (error.code === 'auth/weak-password') {
-            return NextResponse.json(
-                { success: false, message: 'Password is too weak' },
-                { status: 400 }
-            );
+            return NextResponse.json({ success: false, message: 'Password is too weak' }, { status: 400 });
         }
         if (error.code === 'auth/user-not-found') {
-            return NextResponse.json(
-                { success: false, message: 'User not found' },
-                { status: 404 }
-            );
+            return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
         }
 
-        return NextResponse.json({
-            success: false,
-            message: 'Failed to update profile'
-        }, { status: 500 });
+        return NextResponse.json({ success: false, message: 'Failed to update profile' }, { status: 500 });
     }
 }

@@ -7,7 +7,7 @@ const nextConfig = {
     formats: ['image/webp', 'image/avif'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
-    minimumCacheTTL: 86400, // Cache 24 jam
+    minimumCacheTTL: 86400,
     remotePatterns: [
       { protocol: 'https', hostname: 'abahcode.com' },
       { protocol: 'https', hostname: 'upload.wikimedia.org' },
@@ -18,19 +18,9 @@ const nextConfig = {
       { protocol: 'https', hostname: 'sin1.contabostorage.com' },
     ],
   },
-  async headers() {
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self'; img-src 'self' blob: data: https://*.cloudhost.id https://*.contabostorage.com https://abahcode.com https://upload.wikimedia.org https://api.qrserver.com https://placehold.co https://images.unsplash.com https://www.googletagmanager.com; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.firebaseapp.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googletagmanager.com https://www.google-analytics.com;",
-          },
-        ],
-      },
-    ];
-  },
+  // CSP + security headers live in middleware (src/middleware.js) so they
+  // can include a per-request nonce. Keeping them only there avoids a
+  // weaker static CSP overriding the nonce-based one.
 };
 
 export default nextConfig;

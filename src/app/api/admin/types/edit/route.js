@@ -1,87 +1,67 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
+import { requireAdmin } from '@/lib/admin-auth';
+import { assertSameOrigin, isValidDocId } from '@/lib/security';
 
-// Simple in-memory rate limiting
-const rateLimitMap = new Map();
-const RATE_LIMIT_WINDOW = 60 * 1000;
-const RATE_LIMIT_MAX = 30;
+const MAX_PRICE = 100_000_000;
 
-function isRateLimited(identifier) {
-    const now = Date.now();
-    const entry = rateLimitMap.get(identifier);
-    if (!entry || now - entry.firstAttempt > RATE_LIMIT_WINDOW) {
-        rateLimitMap.set(identifier, { firstAttempt: now, count: 1 });
-        return false;
-    }
-    entry.count++;
-    return entry.count > RATE_LIMIT_MAX;
+function sanitizePrice(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > MAX_PRICE) return null;
+    return Math.floor(n);
 }
 
 export async function POST(req) {
-    try {
-        const forwarded = req.headers.get('x-forwarded-for');
-        const ip = forwarded ? forwarded.split(',')[0].trim() : 'unknown';
-        
-        if (isRateLimited(ip)) {
-            return NextResponse.json(
-                { success: false, message: 'Terlalu banyak permintaan.' },
-                { status: 429 }
-            );
-        }
+    const originErr = assertSameOrigin(req);
+    if (originErr) return originErr;
 
+    const auth = await requireAdmin();
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, message: auth.message }, { status: auth.status });
+    }
+
+    try {
         let body;
         try {
             body = await req.json();
-        } catch (e) {
-            return NextResponse.json(
-                { success: false, message: 'Invalid JSON body' },
-                { status: 400 }
-            );
+        } catch {
+            return NextResponse.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
         }
 
         const { typeId, name, sellingPrice, capitalPrice } = body;
 
-        if (!typeId || typeof typeId !== 'string') {
-            return NextResponse.json(
-                { success: false, message: 'Type ID is required' },
-                { status: 400 }
-            );
+        if (!isValidDocId(typeId)) {
+            return NextResponse.json({ success: false, message: 'Invalid type ID' }, { status: 400 });
+        }
+        if (!name || typeof name !== 'string' || name.trim() === '' || name.length > 100) {
+            return NextResponse.json({ success: false, message: 'Invalid type name' }, { status: 400 });
         }
 
-        if (!name || typeof name !== 'string' || name.trim() === '') {
-            return NextResponse.json(
-                { success: false, message: 'Type name is required' },
-                { status: 400 }
-            );
+        const sp = sanitizePrice(sellingPrice);
+        const cp = sanitizePrice(capitalPrice);
+        if (sp === null) {
+            return NextResponse.json({ success: false, message: 'Invalid sellingPrice' }, { status: 400 });
+        }
+        if (cp === null) {
+            return NextResponse.json({ success: false, message: 'Invalid capitalPrice' }, { status: 400 });
         }
 
-        const typeDoc = await adminDb.collection('game_types').doc(typeId).get();
+        const ref = adminDb.collection('game_types').doc(typeId);
+        const typeDoc = await ref.get();
         if (!typeDoc.exists) {
-            return NextResponse.json(
-                { success: false, message: 'Type not found' },
-                { status: 404 }
-            );
+            return NextResponse.json({ success: false, message: 'Type not found' }, { status: 404 });
         }
 
-        await adminDb.collection('game_types').doc(typeId).update({
+        await ref.update({
             name: name.trim(),
-            sellingPrice: parseFloat(sellingPrice) || 0,
-            capitalPrice: parseFloat(capitalPrice) || 0,
-            updatedAt: new Date()
+            sellingPrice: sp,
+            capitalPrice: cp,
+            updatedAt: new Date(),
         });
 
-        console.log(`[Edit Type] Success: ${typeId}`);
-
-        return NextResponse.json({
-            success: true,
-            message: 'Type updated successfully'
-        });
-
+        return NextResponse.json({ success: true, message: 'Type updated successfully' });
     } catch (error) {
         console.error('[Edit Type] Error:', error);
-        return NextResponse.json(
-            { success: false, message: 'Failed to update type: ' + error.message },
-            { status: 500 }
-        );
+        return NextResponse.json({ success: false, message: 'Failed to update type' }, { status: 500 });
     }
 }

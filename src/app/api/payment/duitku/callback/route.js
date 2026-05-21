@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import * as admin from 'firebase-admin';
 import crypto from 'crypto';
+import { maskCode, maskEmail } from '@/lib/security';
 
-// Ensure Firebase Admin is initialized
 if (!admin.apps.length) {
     try {
         admin.initializeApp({
@@ -25,7 +25,6 @@ export async function POST(req) {
         const contentType = req.headers.get('content-type') || '';
         let body;
 
-        // Duitku sends x-www-form-urlencoded
         if (contentType.includes('application/x-www-form-urlencoded')) {
             const formData = await req.formData();
             body = Object.fromEntries(formData.entries());
@@ -35,7 +34,10 @@ export async function POST(req) {
 
         const { merchantCode, amount, merchantOrderId, signature, resultCode, reference } = body;
 
-        // 1. Verify Signature
+        if (!merchantCode || !amount || !merchantOrderId || !signature) {
+            return NextResponse.json({ message: 'Invalid Parameters' }, { status: 400 });
+        }
+
         const apiKey = process.env.DUITKU_API_KEY;
         const calcSignature = crypto.createHash('md5')
             .update(`${merchantCode}${amount}${merchantOrderId}${apiKey}`)
@@ -45,102 +47,103 @@ export async function POST(req) {
             return NextResponse.json({ message: 'Invalid Signature' }, { status: 400 });
         }
 
-        // 2. Find order - check BOTH collections (website uses 'orders', Discord uses 'transactions')
-        let orderRef = null;
-        let orderDoc = null;
-        let orderData = null;
-        let orderSource = null; // 'orders' or 'transactions'
-
-        // Try 'orders' collection first (website orders)
-        orderRef = db.collection('orders').doc(merchantOrderId);
-        orderDoc = await orderRef.get();
+        let orderRef = db.collection('orders').doc(merchantOrderId);
+        let orderDoc = await orderRef.get();
+        let orderSource = null;
 
         if (orderDoc.exists) {
-            orderData = orderDoc.data();
             orderSource = 'orders';
-            console.log(`[Callback] Found order in 'orders' collection: ${merchantOrderId}`);
         } else {
-            // Try 'transactions' collection (Discord bot orders)
             orderRef = db.collection('transactions').doc(merchantOrderId);
             orderDoc = await orderRef.get();
-
-            if (orderDoc.exists) {
-                orderData = orderDoc.data();
-                orderSource = 'transactions';
-                console.log(`[Callback] Found order in 'transactions' collection: ${merchantOrderId}`);
-            }
+            if (orderDoc.exists) orderSource = 'transactions';
         }
 
-        if (!orderData) {
-            console.error('[Callback] Order not found in any collection:', merchantOrderId);
+        if (!orderSource) {
+            console.error('[Callback] Order not found:', merchantOrderId);
             return NextResponse.json({ message: 'Order not found' }, { status: 404 });
         }
 
-        // 3. Handle Payment Status
-        if (resultCode === '00') { // 00 = Success
+        const orderData = orderDoc.data();
+
+        if (resultCode === '00') {
             if (orderData.status === 'SUCCESS') {
                 return NextResponse.json({ message: 'Already Paid' }, { status: 200 });
             }
 
-            // Allocate code AFTER payment success (same flow for Website & Discord)
-            let assignedCode = 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
+            // Verify the paid amount matches the order's stored price.
+            // Prevents an attacker who forges a callback (or finds an old signed
+            // payload at a different amount) from claiming a code worth more.
+            const paidAmount = Number(amount);
+            const orderPrice = Number(orderData.price);
+            if (!Number.isFinite(paidAmount) || !Number.isFinite(orderPrice) || paidAmount < orderPrice) {
+                await orderRef.update({
+                    status: 'FAILED',
+                    failureReason: 'amount_mismatch',
+                    updatedAt: new Date().toISOString(),
+                });
+                console.error(`[Callback] Amount mismatch order=${merchantOrderId} paid=${paidAmount} expected=${orderPrice}`);
+                return NextResponse.json({ message: 'Amount mismatch' }, { status: 400 });
+            }
+
             const itemId = orderData.itemId;
             const source = orderSource === 'orders' ? 'Website' : 'Discord';
             const userName = orderData.username || orderData.userId || 'Unknown';
 
-            const codesRef = db.collection('redeem_codes');
-            const codeSnapshot = await codesRef
-                .where('typeId', '==', itemId)
-                .where('isUsed', '==', false)
-                .limit(1)
-                .get();
+            // Atomic code allocation via Firestore transaction
+            // Prevents race condition where 2 callbacks pick the same unused code
+            let assignedCode = 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
+            try {
+                assignedCode = await db.runTransaction(async (tx) => {
+                    const candidateSnap = await db.collection('redeem_codes')
+                        .where('typeId', '==', itemId)
+                        .where('isUsed', '==', false)
+                        .limit(5)
+                        .get();
 
-            if (!codeSnapshot.empty) {
-                const codeDoc = codeSnapshot.docs[0];
-                assignedCode = codeDoc.data().code;
-
-                const saleTimestamp = new Date().toISOString();
-                const note = `Terjual via ${source} | User: ${userName} | Ref: ${reference} | Order: ${merchantOrderId} | Waktu: ${saleTimestamp}`;
-
-                await codeDoc.ref.update({
-                    isUsed: true,
-                    soldTo: orderData.userId || 'unknown',
-                    transactionId: merchantOrderId,
-                    note: note,
-                    soldAt: admin.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    for (const cand of candidateSnap.docs) {
+                        const fresh = await tx.get(cand.ref);
+                        if (fresh.exists && fresh.data().isUsed === false) {
+                            const saleTimestamp = new Date().toISOString();
+                            const note = `Terjual via ${source} | User: ${userName} | Ref: ${reference} | Order: ${merchantOrderId} | Waktu: ${saleTimestamp}`;
+                            tx.update(cand.ref, {
+                                isUsed: true,
+                                soldTo: orderData.userId || 'unknown',
+                                transactionId: merchantOrderId,
+                                note,
+                                soldAt: admin.firestore.FieldValue.serverTimestamp(),
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+                            return fresh.data().code;
+                        }
+                    }
+                    return 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
                 });
-
-                console.log(`[Callback] Code sold via ${source}:`, { code: assignedCode, soldTo: orderData.userId, note });
-            } else {
-                console.warn('[Callback] No stock available for itemId:', itemId);
+            } catch (txErr) {
+                console.error('[Callback] Code allocation tx failed:', txErr);
             }
 
-            // Update order/transaction
             await orderRef.update({
                 status: 'SUCCESS',
                 duitkuReference: reference,
                 redeemCode: assignedCode,
                 paidAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
             });
 
-            console.log(`[Callback] Order ${merchantOrderId} SUCCESS (${source}) - Code: ${assignedCode}`);
+            console.log(`[Callback] Order ${merchantOrderId} SUCCESS (${source}) - Code: ${maskCode(assignedCode)} - User: ${maskEmail(orderData.userEmail || '')}`);
             return NextResponse.json({ message: 'Success' }, { status: 200 });
-
         } else {
-            // Payment Failed or Expired - just update status
             await orderRef.update({
                 status: 'FAILED',
-                resultCode: resultCode,
+                resultCode,
                 failedAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
             });
 
-            console.log(`[Callback] Order ${merchantOrderId} FAILED (${orderSource}) - resultCode: ${resultCode}`);
+            console.log(`[Callback] Order ${merchantOrderId} FAILED - resultCode: ${resultCode}`);
             return NextResponse.json({ message: 'Payment Failed' }, { status: 200 });
         }
-
     } catch (error) {
         console.error('Duitku Callback Error:', error);
         return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });

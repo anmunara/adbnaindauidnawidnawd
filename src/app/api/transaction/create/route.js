@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { assertSameOrigin } from '@/lib/security';
 import crypto from 'crypto';
 
 // Rate limiting per user
@@ -62,6 +63,9 @@ function validatePaymentMethod(method) {
 
 export async function POST(request) {
     try {
+        const originErr = assertSameOrigin(request);
+        if (originErr) return originErr;
+
         // Authentication check
         const session = await getServerSession(authOptions);
         if (!session || !session.user?.id) {
@@ -103,24 +107,25 @@ export async function POST(request) {
             return NextResponse.json({ success: false, message: itemIdValidation.error }, { status: 400 });
         }
 
-        const priceValidation = validatePrice(price);
-        if (!priceValidation.valid) {
-            return NextResponse.json({ success: false, message: priceValidation.error }, { status: 400 });
-        }
-
         const methodValidation = validatePaymentMethod(paymentMethod);
         if (!methodValidation.valid) {
             return NextResponse.json({ success: false, message: methodValidation.error }, { status: 400 });
         }
 
-        // Validate itemName if provided
-        let validatedItemName = itemName;
-        if (itemName) {
-            if (typeof itemName !== 'string' || itemName.length > 100) {
-                return NextResponse.json({ success: false, message: 'Invalid item name' }, { status: 400 });
-            }
-            validatedItemName = itemName.trim().replace(/[<>\"']/g, ''); // Basic XSS prevention
+        // CRITICAL: trust server-side product data, never the client-supplied price.
+        // Without this, a malicious client can request itemId=<expensive> price=1
+        // and the Duitku invoice will be Rp 1, bypassing the actual cost.
+        const typeDoc = await adminDb.collection('game_types').doc(itemIdValidation.value).get();
+        if (!typeDoc.exists) {
+            return NextResponse.json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
         }
+        const typeData = typeDoc.data();
+        const trustedPrice = Math.floor(Number(typeData.sellingPrice) || 0);
+        if (trustedPrice < 1000 || trustedPrice > 10_000_000) {
+            // Sanity guard: refuse to create payment for an unconfigured / corrupt type.
+            return NextResponse.json({ success: false, message: 'Produk belum dikonfigurasi' }, { status: 400 });
+        }
+        const trustedItemName = String(typeData.name || 'Cloud Phone').slice(0, 100).replace(/[<>"']/g, '');
 
         // 1. Check Stock BEFORE creating payment
         const codesSnapshot = await adminDb.collection('redeem_codes')
@@ -130,14 +135,11 @@ export async function POST(request) {
             .get();
 
         if (codesSnapshot.empty) {
-            console.error('[Transaction Create] No stock available for itemId:', itemIdValidation.value);
             return NextResponse.json(
                 { success: false, message: 'Stok habis! Silakan hubungi admin.' },
                 { status: 400 }
             );
         }
-
-        console.log('[Transaction Create] Stock available for itemId:', itemIdValidation.value);
 
         // 2. Create Order ID with crypto (more secure than Math.random)
         const orderId = `TRX-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -154,8 +156,8 @@ export async function POST(request) {
             );
         }
 
-        const paymentAmount = priceValidation.value;
-        const productDetails = `Top Up ${validatedItemName || 'Cloud Phone'} (${userIdValidation.value})`;
+        const paymentAmount = trustedPrice;
+        const productDetails = `Top Up ${trustedItemName} (${userIdValidation.value})`;
         const email = session.user.email || 'customer@example.com';
         const phoneNumber = '08123456789';
         const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://tokoroblox.id'}/api/payment/duitku/callback`;
@@ -179,7 +181,7 @@ export async function POST(request) {
             customerVaName: userIdValidation.value.substring(0, 20), // Limit length
             itemDetails: [
                 {
-                    name: validatedItemName || 'Cloud Phone',
+                    name: trustedItemName,
                     price: paymentAmount,
                     quantity: 1
                 }
@@ -236,7 +238,7 @@ export async function POST(request) {
             userId: userIdValidation.value,
             userEmail: session.user.email,
             itemId: itemIdValidation.value,
-            itemName: validatedItemName || 'Cloud Phone',
+            itemName: trustedItemName,
             price: paymentAmount,
             paymentMethod: methodValidation.value,
             status: 'PENDING',

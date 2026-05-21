@@ -6,7 +6,7 @@ import { adminDb } from '@/lib/firebaseAdmin';
 // Rate limiting
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 30; // 30 checks per minute
+const RATE_LIMIT_MAX = 15; // 15 checks per minute (was 30 — tightened to limit brute-force scanning)
 
 function isRateLimited(ip) {
     const now = Date.now();
@@ -56,8 +56,8 @@ export async function GET(request) {
             );
         }
 
-        // Validate orderId format (prevent injection)
-        if (!/^TRX-[0-9]+-[0-9a-zA-Z]+$/.test(orderId)) {
+        // Validate orderId format (prevent injection + cap length)
+        if (!/^TRX-[0-9]{10,16}-[0-9a-zA-Z]{4,16}$/.test(orderId)) {
             return NextResponse.json(
                 { success: false, message: 'Invalid Order ID format' },
                 { status: 400 }
