@@ -6,23 +6,32 @@ const { addStoreMessage, clearOldMessages } = require('../utils/storeMessages');
 // Function to build embed with current stock
 async function buildStoreEmbed(typesSnapshot, stockMap) {
     const embed = new EmbedBuilder()
-        .setColor(0x2B2D31)
-        .setTitle('⚫ CLOUDPHONE REDFINGER')
-        .setDescription('**Selamat Datang!**\nSilahkan pilih paket Cloudphone yang Anda inginkan melalui menu di bawah.\n\n✅ **Stok Real-time**\n⚡ **Proses Otomatis**\n🛡️ **Garansi Resmi**')
+        .setColor(0x5865F2)
+        .setTitle('🎮 KINGBLOX CLOUDPHONE STORE')
+        .setDescription('```\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n        🌟 WELCOME TO KINGBLOX 🌟\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━```\n\n✅ **Live Stock Updates** • 📱 **Premium Devices**\n⚡ **Instant Delivery** • 🔒 **Secure Transactions**\n\n**Select your package below:**')
         .setThumbnail('https://media.discordapp.net/attachments/1435204509864296458/1435324989200011398/2.png?ex=698cc110&is=698b6f90&hm=2d53abde392c2419888a4971ac1452a4bb726eb32ee633d3a2deb90883df3baa&=&format=webp&quality=lossless&width=220&height=220')
         .setImage('https://media.discordapp.net/attachments/1203646271960846336/1205167688531546193/rainbow_line.gif?ex=65d75ec7&is=65c4e9c7&hm=5fa2420952d7667d49814421469735e5c740062c31c77579148d576135317711&=')
         .setTimestamp()
-        .setFooter({ text: 'Cloudphone Manager • Automated System', iconURL: 'https://media.discordapp.net/attachments/1435204509864296458/1435324989200011398/2.png?ex=698cc110&is=698b6f90&hm=2d53abde392c2419888a4971ac1452a4bb726eb32ee633d3a2deb90883df3baa&=&format=webp&quality=lossless&width=220&height=220' });
+        .setFooter({ text: '🔄 Auto-refreshing every 30 seconds • KingBlox Store', iconURL: 'https://media.discordapp.net/attachments/1435204509864296458/1435324989200011398/2.png?ex=698cc110&is=698b6f90&hm=2d53abde392c2419888a4971ac1452a4bb726eb32ee633d3a2deb90883df3baa&=&format=webp&quality=lossless&width=220&height=220' });
 
     typesSnapshot.forEach((doc) => {
         const data = doc.data();
         const price = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(data.sellingPrice || 0);
         const stock = stockMap[doc.id] || 0;
 
+        // Stock status indicator
+        let stockStatus = '❌ Out of Stock';
+        let stockBar = '`░░░░░░░░░░`';
+        if (stock > 0) {
+            stockStatus = `✅ ${stock} unit(s) available`;
+            const percentage = Math.min(stock * 10, 10);
+            stockBar = '`' + '█'.repeat(Math.ceil(percentage)) + '░'.repeat(10 - Math.ceil(percentage)) + '`';
+        }
+
         embed.addFields({
-            name: `🔹 ${data.name}`,
-            value: `🏷️ **${price}**\n📦 Stok: **${stock}** unit`,
-            inline: true
+            name: `\n💎 ${data.name}`,
+            value: `\`\`\`yaml\nPrice  : ${price}\nStock  : ${stock} unit(s)\nStatus : ${stockStatus.replace(/✅|❌/g, '')}\n${stockBar}\n\`\`\``,
+            inline: false
         });
     });
 
@@ -60,7 +69,7 @@ module.exports = {
                     // 4. Build Dropdown
                     const selectMenu = new StringSelectMenuBuilder()
                         .setCustomId('shop_select')
-                        .setPlaceholder('🔻 Pilih Paket Cloudphone Di Sini...');
+                        .setPlaceholder('💳 Select a package to purchase');
 
                     typesSnapshot.forEach((doc) => {
                         const data = doc.data();
@@ -79,8 +88,9 @@ module.exports = {
                     // 5. Add Refresh Button
                     const refreshButton = new ButtonBuilder()
                         .setCustomId('refresh_store')
-                        .setLabel('🔄 Refresh Stock')
-                        .setStyle(ButtonStyle.Secondary);
+                        .setLabel('Refresh Stock')
+                        .setEmoji('🔄')
+                        .setStyle(ButtonStyle.Primary);
                     
                     const buttonRow = new ActionRowBuilder().addComponents(refreshButton);
                     const selectRow = new ActionRowBuilder().addComponents(selectMenu);
@@ -113,7 +123,7 @@ module.exports = {
 
                     const selectMenu = new StringSelectMenuBuilder()
                         .setCustomId('shop_select')
-                        .setPlaceholder('🔻 Pilih Paket Cloudphone Di Sini...');
+                        .setPlaceholder('💳 Select a package to purchase');
 
                     typesSnapshot.forEach((doc) => {
                         const data = doc.data();
@@ -131,8 +141,9 @@ module.exports = {
 
                     const refreshButton = new ButtonBuilder()
                         .setCustomId('refresh_store')
-                        .setLabel('🔄 Refresh Stock')
-                        .setStyle(ButtonStyle.Secondary);
+                        .setLabel('Refresh Stock')
+                        .setEmoji('🔄')
+                        .setStyle(ButtonStyle.Primary);
                     
                     const buttonRow = new ActionRowBuilder().addComponents(refreshButton);
                     const selectRow = new ActionRowBuilder().addComponents(selectMenu);
@@ -141,7 +152,7 @@ module.exports = {
                 } catch (err) {
                     console.error('[Auto-refresh Error]:', err);
                 }
-            }, 10000);
+            }, 30000);
 
             // Cleanup interval after 10 minutes (to prevent memory leak)
             setTimeout(() => {
