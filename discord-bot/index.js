@@ -346,7 +346,7 @@ client.on(Events.InteractionCreate, async interaction => {
                         username: interaction.user.username,
                         itemId: docId,
                         itemName: productData.name,
-                        amount: paymentAmount,
+                        price: paymentAmount,
                         merchantOrderId: merchantOrderId,
                         status: 'PENDING',
                         createdAt: new Date(),
