@@ -85,7 +85,7 @@ module.exports = {
 
                     // 4. Build Dropdown
                     const selectMenu = new StringSelectMenuBuilder()
-                        .setCustomId('shop_select')
+                        .setCustomId('shop_select_rbxg')
                         .setPlaceholder('💳 Select a gift card to purchase');
 
                     typesSnapshot.forEach((doc) => {
@@ -135,7 +135,7 @@ module.exports = {
                     const embed = await buildStoreEmbed(typesSnapshot, stockMap);
 
                     const selectMenu = new StringSelectMenuBuilder()
-                        .setCustomId('shop_select')
+                        .setCustomId('shop_select_rbxg')
                         .setPlaceholder('💳 Select a gift card to purchase');
 
                     typesSnapshot.forEach((doc) => {

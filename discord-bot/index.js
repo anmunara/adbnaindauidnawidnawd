@@ -307,7 +307,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
     // Handle Dropdown Menu (Shop Select)
     else if (interaction.isStringSelectMenu()) {
-        if (interaction.customId === 'shop_select') {
+        if (interaction.customId === 'shop_select_rf' || interaction.customId === 'shop_select_rbxg') {
             await interaction.deferReply({ ephemeral: true });
 
             const selectedValue = interaction.values[0];
