@@ -11,10 +11,16 @@ export const viewport = {
 export const metadata = {
   title: "KingBlox — Premium Digital Marketplace",
   description: "Premium cloud phone & digital products. Fast delivery, secure transactions, 24/7 support.",
+  icons: {
+    icon: "/redfinger-icon.png",
+    shortcut: "/redfinger-icon.png",
+    apple: "/redfinger-icon.png",
+  },
   openGraph: {
     title: "KingBlox — Premium Digital Marketplace",
     description: "Premium cloud phone & digital products. Fast delivery, secure transactions, 24/7 support.",
     type: "website",
+    image: "/redfinger-icon.png",
   },
 };
 
