@@ -22,7 +22,7 @@ import {
 const PAYMENT_GROUPS = [
   {
     id: 'qris', name: 'QRIS', Icon: QrCode,
-    methods: [{ code: 'SQ', name: 'QRIS (All E-Wallet)', fee: '+1%' }]
+    methods: [{ code: 'SQ', name: 'QRIS (All E-Wallet)', fee: '+0.70%' }]
   },
   {
     id: 'va', name: 'Virtual Account', Icon: Building2,
