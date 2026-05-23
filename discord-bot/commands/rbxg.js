@@ -20,31 +20,19 @@ async function getTotalSold(typeId) {
 async function buildStoreEmbed(typesSnapshot, stockMap) {
     const embed = new EmbedBuilder()
         .setColor(0xFF6B00)
-        .setTitle('🎮 ROBLOX GIFT CARDS STORE')
-        .setDescription('```\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n        🎁 ROBLOX GIFT CARDS 🎁\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━```\n\n✅ **Live Stock Updates** • 🎮 **All Denominations**\n⚡ **Instant Delivery** • 🔒 **Secure Transactions**\n\n**Select your gift card below:**')
-        .setThumbnail('https://media.discordapp.net/attachments/1435204509864296458/1435324989200011398/2.png?ex=698cc110&is=698b6f90&hm=2d53abde392c2419888a4971ac1452a4bb726eb32ee633d3a2deb90883df3baa&=&format=webp&quality=lossless&width=220&height=220')
-        .setImage('https://media.discordapp.net/attachments/1203646271960846336/1205167688531546193/rainbow_line.gif?ex=65d75ec7&is=65c4e9c7&hm=5fa2420952d7667d49814421469735e5c740062c31c77579148d576135317711&=')
-        .setTimestamp()
-        .setFooter({ text: '🔄 Auto-refreshing every 30 seconds • KingBlox Store', iconURL: 'https://media.discordapp.net/attachments/1435204509864296458/1435324989200011398/2.png?ex=698cc110&is=698b6f90&hm=2d53abde392c2419888a4971ac1452a4bb726eb32ee633d3a2deb90883df3baa&=&format=webp&quality=lossless&width=220&height=220' });
+        .setTitle('🎮 Roblox Gift Cards')
+        .setDescription('Select a gift card below to purchase')
+        .setFooter({ text: 'Auto-refresh every 30s' });
 
     for (const doc of typesSnapshot.docs) {
         const data = doc.data();
         const price = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(data.sellingPrice || 0);
         const stock = stockMap[doc.id] || 0;
-        const totalSold = await getTotalSold(doc.id);
-
-        // Stock status indicator
-        let stockStatus = '❌ Out of Stock';
-        let stockBar = '`░░░░░░░░░░`';
-        if (stock > 0) {
-            stockStatus = `✅ ${stock} available`;
-            const percentage = Math.min(stock * 10, 10);
-            stockBar = '`' + '█'.repeat(Math.ceil(percentage)) + '░'.repeat(10 - Math.ceil(percentage)) + '`';
-        }
+        const statusEmoji = stock > 0 ? '✅' : '❌';
 
         embed.addFields({
-            name: `\n🎁 ${data.name}`,
-            value: `\`\`\`yaml\nPrice      : ${price}\nStock      : ${stock} unit(s)\nTotal Sold : ${totalSold} unit(s)\nStatus     : ${stockStatus.replace(/✅|❌/g, '')}\n${stockBar}\n\`\`\``,
+            name: `${data.name}`,
+            value: `${price} • ${statusEmoji} ${stock} available`,
             inline: false
         });
     }
