@@ -156,6 +156,10 @@ module.exports = {
 
                     await message.edit({ embeds: [embed], components: [selectRow] });
                 } catch (err) {
+                    if (err.code === 10008) {
+                        // Message was deleted, silently ignore
+                        return;
+                    }
                     console.error('[Auto-refresh Error]:', err);
                 }
             }, 30000);
