@@ -15,6 +15,13 @@ export async function GET(req) {
             const typeData = typeDoc.data();
             const typeId = typeDoc.id;
 
+            // Backfill missing category — old products default to 'redfinger'
+            let category = typeData.category;
+            if (!category) {
+                category = 'redfinger';
+                await typeDoc.ref.update({ category }).catch(() => {});
+            }
+
             // Count codes that are NOT used (Admin SDK - always real-time)
             const codesSnapshot = await adminDb.collection('redeem_codes')
                 .where('typeId', '==', typeId)
@@ -25,7 +32,9 @@ export async function GET(req) {
                 id: typeId,
                 name: typeData.name,
                 price: typeData.sellingPrice,
+                sellingPrice: typeData.sellingPrice,
                 capitalPrice: typeData.capitalPrice,
+                category,
                 stock: codesSnapshot.size, // Available codes count
                 createdAt: typeData.createdAt,
             });

@@ -125,7 +125,10 @@ module.exports = {
             // Setup auto-refresh every 30 seconds
             const refreshInterval = setInterval(async () => {
                 try {
-                    const typesSnapshot = await db.collection('game_types').orderBy('createdAt', 'desc').get();
+                    const typesSnapshot = await db.collection('game_types')
+                        .where('category', '==', 'redfinger')
+                        .orderBy('createdAt', 'desc')
+                        .get();
                     if (typesSnapshot.empty) return;
 
                     const stockMap = getStockCache();

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
     Package, Plus, Pencil, Trash2, DollarSign, TrendingUp,
-    Ticket, ShoppingBag, Download, AlertCircle
+    Ticket, ShoppingBag, Download, AlertCircle, Smartphone, Gift
 } from 'lucide-react';
 import { PageHeader } from '@/components/admin/PageHeader';
 import { SearchInput } from '@/components/admin/SearchInput';
@@ -17,11 +17,23 @@ import { cn } from '@/lib/utils';
 const formatCurrency = (n) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0);
 
+const CATEGORIES = [
+    { value: 'all', label: 'Semua', icon: Package },
+    { value: 'redfinger', label: 'RedFinger', icon: Smartphone },
+    { value: 'roblox', label: 'Roblox Gift', icon: Gift },
+];
+
+const CATEGORY_META = {
+    redfinger: { label: 'RedFinger', icon: Smartphone, color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' },
+    roblox: { label: 'Roblox', icon: Gift, color: 'bg-orange-500/10 text-orange-500 border-orange-500/20' },
+};
+
 export default function TypesPage() {
     const [types, setTypes] = useState([]);
     const [codes, setCodes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('all');
     const [selected, setSelected] = useState(new Set());
 
     const [addOpen, setAddOpen] = useState(false);
@@ -31,7 +43,7 @@ export default function TypesPage() {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
-    const [form, setForm] = useState({ name: '', sellingPrice: '', capitalPrice: '' });
+    const [form, setForm] = useState({ name: '', sellingPrice: '', capitalPrice: '', category: 'redfinger' });
     const [saving, setSaving] = useState(false);
 
     const loadData = async () => {
@@ -60,9 +72,22 @@ export default function TypesPage() {
 
     const filtered = useMemo(() => {
         const q = search.toLowerCase().trim();
-        if (!q) return types;
-        return types.filter((t) => t.name?.toLowerCase().includes(q));
-    }, [types, search]);
+        return types.filter((t) => {
+            const cat = t.category || 'redfinger';
+            if (categoryFilter !== 'all' && cat !== categoryFilter) return false;
+            if (q && !t.name?.toLowerCase().includes(q)) return false;
+            return true;
+        });
+    }, [types, search, categoryFilter]);
+
+    const categoryCounts = useMemo(() => {
+        const counts = { all: types.length, redfinger: 0, roblox: 0 };
+        types.forEach((t) => {
+            const cat = t.category || 'redfinger';
+            if (counts[cat] !== undefined) counts[cat]++;
+        });
+        return counts;
+    }, [types]);
 
     const allSelected = filtered.length > 0 && filtered.every((t) => selected.has(t.id));
     const someSelected = filtered.some((t) => selected.has(t.id));
@@ -83,7 +108,8 @@ export default function TypesPage() {
     };
 
     const openAdd = () => {
-        setForm({ name: '', sellingPrice: '', capitalPrice: '' });
+        const defaultCat = categoryFilter === 'all' ? 'redfinger' : categoryFilter;
+        setForm({ name: '', sellingPrice: '', capitalPrice: '', category: defaultCat });
         setAddOpen(true);
     };
 
@@ -93,6 +119,7 @@ export default function TypesPage() {
             name: type.name || '',
             sellingPrice: String(type.sellingPrice || type.price || ''),
             capitalPrice: String(type.capitalPrice || ''),
+            category: type.category || 'redfinger',
         });
         setEditOpen(true);
     };
@@ -111,6 +138,7 @@ export default function TypesPage() {
                     name: form.name.trim(),
                     sellingPrice: parseFloat(form.sellingPrice) || 0,
                     capitalPrice: parseFloat(form.capitalPrice) || 0,
+                    category: form.category || 'redfinger',
                 }),
             });
             const json = await res.json();
@@ -143,6 +171,7 @@ export default function TypesPage() {
                     name: form.name.trim(),
                     sellingPrice: parseFloat(form.sellingPrice) || 0,
                     capitalPrice: parseFloat(form.capitalPrice) || 0,
+                    category: form.category || 'redfinger',
                 }),
             });
             const json = await res.json();
@@ -227,6 +256,35 @@ export default function TypesPage() {
             />
 
             <div className="px-4 sm:px-6 lg:px-8 pb-12 space-y-4">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {CATEGORIES.map((cat) => {
+                        const Icon = cat.icon;
+                        const isActive = categoryFilter === cat.value;
+                        const count = categoryCounts[cat.value] ?? 0;
+                        return (
+                            <button
+                                key={cat.value}
+                                onClick={() => setCategoryFilter(cat.value)}
+                                className={cn(
+                                    "inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border",
+                                    isActive
+                                        ? "bg-brand-500 text-white border-brand-500 shadow-md shadow-brand-500/30"
+                                        : "bg-surface border-border hover:border-brand-500/40 text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <Icon className="w-3.5 h-3.5" />
+                                {cat.label}
+                                <span className={cn(
+                                    "inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md text-[10px] font-bold",
+                                    isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                                )}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+
                 <div className="flex items-center gap-3">
                     <SearchInput
                         value={search}
@@ -289,6 +347,9 @@ export default function TypesPage() {
                                 const stock = type.stock ?? 0;
                                 const margin = (type.sellingPrice || type.price || 0) - (type.capitalPrice || 0);
                                 const isSelected = selected.has(type.id);
+                                const catKey = type.category || 'redfinger';
+                                const catMeta = CATEGORY_META[catKey] || CATEGORY_META.redfinger;
+                                const CatIcon = catMeta.icon;
 
                                 return (
                                     <div
@@ -324,14 +385,24 @@ export default function TypesPage() {
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-3 mb-4">
+                                        <div className="flex items-center gap-3 mb-3">
                                             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500/20 to-brand-700/10 flex items-center justify-center">
-                                                <Package className="w-5 h-5 text-brand-500" />
+                                                <CatIcon className="w-5 h-5 text-brand-500" />
                                             </div>
                                             <div className="min-w-0 flex-1">
                                                 <h3 className="font-display font-bold truncate">{type.name}</h3>
                                                 <p className="text-[11px] text-muted-foreground">ID: {type.id.slice(0, 8)}...</p>
                                             </div>
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <span className={cn(
+                                                "inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold border",
+                                                catMeta.color
+                                            )}>
+                                                <CatIcon className="w-3 h-3" />
+                                                {catMeta.label}
+                                            </span>
                                         </div>
 
                                         <div className="space-y-2 pt-4 border-t border-border">
@@ -455,14 +526,50 @@ function Row({ label, value, accent }) {
 }
 
 function TypeForm({ form, setForm }) {
+    const categoryOptions = [
+        { value: 'redfinger', label: 'RedFinger', icon: Smartphone, desc: 'Cloudphone subscription' },
+        { value: 'roblox', label: 'Roblox Gift', icon: Gift, desc: 'Roblox gift card' },
+    ];
     return (
         <div className="space-y-4">
+            <Field label="Kategori" required>
+                <div className="grid grid-cols-2 gap-2">
+                    {categoryOptions.map((opt) => {
+                        const Icon = opt.icon;
+                        const isActive = form.category === opt.value;
+                        return (
+                            <button
+                                type="button"
+                                key={opt.value}
+                                onClick={() => setForm({ ...form, category: opt.value })}
+                                className={cn(
+                                    "flex items-center gap-3 p-3 rounded-xl border text-left transition-all",
+                                    isActive
+                                        ? "bg-brand-500/10 border-brand-500/50 ring-2 ring-brand-500/20"
+                                        : "bg-muted/30 border-border hover:border-brand-500/30"
+                                )}
+                            >
+                                <div className={cn(
+                                    "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                                    isActive ? "bg-brand-500 text-white" : "bg-muted text-muted-foreground"
+                                )}>
+                                    <Icon className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="text-xs font-bold">{opt.label}</div>
+                                    <div className="text-[10px] text-muted-foreground truncate">{opt.desc}</div>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </Field>
             <Field label="Nama Produk" required>
                 <input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="Cth: RF SVIP 30 Hari"
+                    placeholder={form.category === 'roblox' ? 'Cth: Roblox 100 Robux' : 'Cth: RF SVIP 30 Hari'}
                     className="w-full h-11 px-3 rounded-xl bg-muted/50 border border-border text-sm focus:outline-none focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20"
                 />
             </Field>

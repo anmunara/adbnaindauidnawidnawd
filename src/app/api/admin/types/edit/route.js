@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin, isValidDocId } from '@/lib/security';
 
 const MAX_PRICE = 100_000_000;
+const VALID_CATEGORIES = ['redfinger', 'roblox'];
 
 function sanitizePrice(v) {
     const n = Number(v);
@@ -28,7 +29,7 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
         }
 
-        const { typeId, name, sellingPrice, capitalPrice } = body;
+        const { typeId, name, sellingPrice, capitalPrice, category } = body;
 
         if (!isValidDocId(typeId)) {
             return NextResponse.json({ success: false, message: 'Invalid type ID' }, { status: 400 });
@@ -52,12 +53,17 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Type not found' }, { status: 404 });
         }
 
-        await ref.update({
+        const updates = {
             name: name.trim(),
             sellingPrice: sp,
             capitalPrice: cp,
             updatedAt: new Date(),
-        });
+        };
+        if (typeof category === 'string' && VALID_CATEGORIES.includes(category)) {
+            updates.category = category;
+        }
+
+        await ref.update(updates);
 
         return NextResponse.json({ success: true, message: 'Type updated successfully' });
     } catch (error) {

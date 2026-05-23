@@ -54,7 +54,7 @@ async function buildStoreEmbed(typesSnapshot, stockMap) {
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('rbxgift')
+        .setName('rbxg')
         .setDescription('🎮 Roblox Gift Cards - Instant Delivery'),
     buildStoreEmbed,
     async execute(interaction) {

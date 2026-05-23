@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin } from '@/lib/security';
 
 const MAX_PRICE = 100_000_000; // Rp 100 juta sanity cap
+const VALID_CATEGORIES = ['redfinger', 'roblox'];
 
 function sanitizePrice(v) {
     const n = Number(v);
@@ -28,7 +29,7 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
         }
 
-        const { name, sellingPrice, capitalPrice } = body;
+        const { name, sellingPrice, capitalPrice, category } = body;
 
         if (!name || typeof name !== 'string' || name.trim() === '' || name.length > 100) {
             return NextResponse.json({ success: false, message: 'Invalid type name' }, { status: 400 });
@@ -43,10 +44,13 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid capitalPrice' }, { status: 400 });
         }
 
+        const cat = typeof category === 'string' && VALID_CATEGORIES.includes(category) ? category : 'redfinger';
+
         const docRef = await adminDb.collection('game_types').add({
             name: name.trim(),
             sellingPrice: sp,
             capitalPrice: cp,
+            category: cat,
             createdAt: new Date(),
         });
 
