@@ -365,14 +365,11 @@ export default function CartPage() {
                                     )}
                                   >
                                     <span className="font-medium">{method.name}</span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-muted-foreground">{method.fee}</span>
-                                      {isSelected && (
-                                        <div className="w-4 h-4 rounded-full bg-brand-500 flex items-center justify-center">
-                                          <Check className="w-2.5 h-2.5 text-white" />
-                                        </div>
-                                      )}
-                                    </div>
+                                    {isSelected && (
+                                      <div className="w-4 h-4 rounded-full bg-brand-500 flex items-center justify-center">
+                                        <Check className="w-2.5 h-2.5 text-white" />
+                                      </div>
+                                    )}
                                   </button>
                                 );
                               })}
@@ -394,13 +391,9 @@ export default function CartPage() {
                       <span>Subtotal ({totalItems} item)</span>
                       <span>Rp {getTotalPrice().toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Biaya Admin</span>
-                      <span>Rp {getFee().toLocaleString()}</span>
-                    </div>
                     <div className="border-t border-border pt-3 mt-3">
                       <div className="flex items-end justify-between">
-                        <span className="font-semibold">Total</span>
+                        <span className="font-semibold">Total Bayar</span>
                         <span className="text-2xl font-display font-black gradient-text">
                           Rp {getGrandTotal().toLocaleString()}
                         </span>
