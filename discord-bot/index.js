@@ -60,13 +60,12 @@ async function broadcastStockUpdate() {
     console.log(`[Broadcast] Updating ${storeMessages.length} store messages...`);
     
     try {
-        const stockMap = getStockCache();
+        // Fetch products from local web API
+        const allProducts = await fetchProductsFromWeb();
+        if (!allProducts) return;
 
-        const rfCommand = require('./commands/rf');
-        const rbxgCommand = require('./commands/rbxg');
-
-        const rfTypes = await db.collection('game_types').where('category', '==', 'redfinger').orderBy('createdAt', 'desc').get();
-        const rbxgTypes = await db.collection('game_types').where('category', '==', 'roblox').orderBy('createdAt', 'desc').get();
+        const rfProducts = allProducts.filter(p => (p.category || 'redfinger') === 'redfinger');
+        const rbxgProducts = allProducts.filter(p => (p.category || 'redfinger') === 'roblox');
 
         let successCount = 0;
         let failCount = 0;
@@ -79,31 +78,38 @@ async function broadcastStockUpdate() {
                 const message = await channel.messages.fetch(messageId);
                 if (!message) { removeStoreMessage(messageId); continue; }
 
-                // Detect which store this message belongs to by checking embed title
                 const existingEmbed = message.embeds?.[0];
                 const title = existingEmbed?.title || '';
                 const isRbxg = title.includes('Roblox');
-                const typesSnap = isRbxg ? rbxgTypes : rfTypes;
-                const commandModule = isRbxg ? rbxgCommand : rfCommand;
+                const products = isRbxg ? rbxgProducts : rfProducts;
                 const customId = isRbxg ? 'shop_select_rbxg' : 'shop_select_rf';
 
-                if (typesSnap.empty) continue;
+                if (products.length === 0) continue;
 
-                const embed = await commandModule.buildStoreEmbed(typesSnap, stockMap);
+                const embed = new EmbedBuilder()
+                    .setColor(isRbxg ? 0xFF6B00 : 0xE74C3C)
+                    .setTitle(isRbxg ? '🎮 Roblox Gift Cards' : '🔴 RedFinger Cloudphone')
+                    .setDescription(isRbxg ? 'Select a gift card below to purchase' : 'Select a package below to purchase')
+                    .setFooter({ text: 'Stock updates automatically' });
+
+                products.forEach(p => {
+                    const price = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(p.sellingPrice || 0);
+                    const stock = p.stock || 0;
+                    embed.addFields({ name: p.name, value: `${price} • ${stock > 0 ? '✅' : '❌'} ${stock} available`, inline: false });
+                });
 
                 const selectMenu = new StringSelectMenuBuilder()
                     .setCustomId(customId)
                     .setPlaceholder(isRbxg ? '💳 Select a gift card to purchase' : '💳 Select a package to purchase');
 
-                typesSnap.forEach((doc) => {
-                    const data = doc.data();
-                    const price = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(data.sellingPrice || 0);
-                    const stock = stockMap[doc.id] || 0;
+                products.forEach(p => {
+                    const price = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(p.sellingPrice || 0);
+                    const stock = p.stock || 0;
                     selectMenu.addOptions(
                         new StringSelectMenuOptionBuilder()
-                            .setLabel(`${data.name} - ${price}`)
+                            .setLabel(`${p.name} - ${price}`)
                             .setDescription(`Stock: ${stock} available | Click to buy`)
-                            .setValue(`buy_${doc.id}`)
+                            .setValue(`buy_${p.id}`)
                             .setEmoji(stock > 0 ? (isRbxg ? '🎁' : '📦') : '❌')
                     );
                 });
@@ -156,59 +162,63 @@ async function buildStoreDropdown() {
     return new ActionRowBuilder().addComponents(menu);
 }
 
+// Fetch products from local web API (bypasses Firestore connection issues)
+const WEB_API_URL = 'http://localhost:3000';
+
+async function fetchProductsFromWeb() {
+    try {
+        const res = await fetch(`${WEB_API_URL}/api/products/get`);
+        const json = await res.json();
+        if (json.success) return json.data;
+        console.error('[Web API] Failed:', json.error);
+        return null;
+    } catch (err) {
+        console.error('[Web API] Error:', err.message);
+        return null;
+    }
+}
+
+// Poll stock from web API every 15 seconds
+let stockPollInterval = null;
+let lastStockJson = '';
+
+async function pollStockFromWeb() {
+    const products = await fetchProductsFromWeb();
+    if (!products) return;
+
+    const newStockMap = {};
+    products.forEach(p => {
+        if (p.id && p.stock !== undefined) {
+            newStockMap[p.id] = p.stock;
+        }
+    });
+
+    const newJson = JSON.stringify(newStockMap);
+    if (newJson !== lastStockJson) {
+        console.log('[Stock Poll] Stock changed:', newStockMap);
+        updateStockCache(newStockMap);
+        lastStockJson = newJson;
+
+        // Broadcast update to active embeds
+        broadcastStockUpdate().catch(err => {
+            console.error('[Stock Poll] Broadcast failed:', err);
+        });
+    }
+}
+
 // Event: Ready
 client.once(Events.ClientReady, c => {
     console.log(`Ready! Logged in as ${c.user.tag}`);
 
-    // Setup real-time stock listener
-    setupRealtimeStockListener();
-    console.log('[Bot] Real-time stock listener initialized');
+    // Initial stock fetch + start polling
+    setTimeout(async () => {
+        await pollStockFromWeb();
+        console.log('[Bot] Initial stock loaded from web API');
+
+        stockPollInterval = setInterval(pollStockFromWeb, 15000);
+        console.log('[Bot] Stock polling started (every 15s)');
+    }, 3000); // Wait 3s for web to be ready
 });
-
-// Real-time Stock Listener: Listen to redeem_codes changes
-async function setupRealtimeStockListener() {
-    try {
-        // Unsubscribe from previous listener if exists
-        if (stockUnsubscribe) {
-            stockUnsubscribe();
-        }
-
-        // Subscribe to real-time updates of redeem_codes
-        let isFirstSnapshot = true;
-
-        stockUnsubscribe = db.collection('redeem_codes').onSnapshot(snapshot => {
-            // Update stock cache
-            const newStockMap = {};
-
-            snapshot.forEach(doc => {
-                const data = doc.data();
-                if (data.typeId && !data.isUsed) { // Only count unused codes
-                    newStockMap[data.typeId] = (newStockMap[data.typeId] || 0) + 1;
-                }
-            });
-
-            console.log('[Stock Update] Real-time stock sync:', newStockMap);
-            updateStockCache(newStockMap);
-
-            // Skip broadcast on initial snapshot (bot startup) to avoid unnecessary updates
-            if (isFirstSnapshot) {
-                isFirstSnapshot = false;
-                return;
-            }
-
-            // Broadcast stock change to all active store embeds
-            broadcastStockUpdate().catch(err => {
-                console.error('[Stock Update] Broadcast failed:', err);
-            });
-        }, error => {
-            console.error('[Stock Listener Error]:', error);
-            // Retry after 5 seconds
-            setTimeout(setupRealtimeStockListener, 5000);
-        });
-    } catch (error) {
-        console.error('[Stock Listener Setup Error]:', error);
-    }
-}
 
 // Event: Interaction Create
 client.on(Events.InteractionCreate, async interaction => {
