@@ -61,73 +61,62 @@ async function broadcastStockUpdate() {
     
     try {
         const stockMap = getStockCache();
-        const typesSnap = await db.collection('game_types').orderBy('createdAt', 'desc').get();
-        
-        // Build components once
-        const { buildStoreEmbed } = require('./commands/store');
-        const { ButtonBuilder, ButtonStyle, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
-        
-        const embed = await buildStoreEmbed(typesSnap, stockMap);
-        
-        // Build dropdown
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId('shop_select')
-            .setPlaceholder('🔻 Pilih Paket Cloudphone Di Sini...');
 
-        typesSnap.forEach((doc) => {
-            const data = doc.data();
-            const price = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(data.sellingPrice || 0);
-            const stock = stockMap[doc.id] || 0;
+        const rfCommand = require('./commands/rf');
+        const rbxgCommand = require('./commands/rbxg');
 
-            selectMenu.addOptions(
-                new StringSelectMenuOptionBuilder()
-                    .setLabel(`${data.name} - ${price}`)
-                    .setDescription(`Stok: ${stock} unit | Klik untuk membeli`)
-                    .setValue(`buy_${doc.id}`)
-                    .setEmoji(stock > 0 ? '📦' : '❌')
-            );
-        });
+        const rfTypes = await db.collection('game_types').where('category', '==', 'redfinger').orderBy('createdAt', 'desc').get();
+        const rbxgTypes = await db.collection('game_types').where('category', '==', 'roblox').orderBy('createdAt', 'desc').get();
 
-        const refreshButton = new ButtonBuilder()
-            .setCustomId('refresh_store')
-            .setLabel('🔄 Refresh Stock')
-            .setStyle(ButtonStyle.Secondary);
-        
-        const buttonRow = new ActionRowBuilder().addComponents(refreshButton);
-        const selectRow = new ActionRowBuilder().addComponents(selectMenu);
-
-        // Update all messages
         let successCount = 0;
         let failCount = 0;
-        
-        for (const [messageId, data] of storeMessages) {
+
+        for (const [messageId, msgData] of storeMessages) {
             try {
-                const channel = await client.channels.fetch(data.channelId);
-                if (!channel) {
-                    removeStoreMessage(messageId);
-                    continue;
-                }
-                
+                const channel = await client.channels.fetch(msgData.channelId);
+                if (!channel) { removeStoreMessage(messageId); continue; }
+
                 const message = await channel.messages.fetch(messageId);
-                if (!message) {
-                    removeStoreMessage(messageId);
-                    continue;
-                }
-                
-                await message.edit({ 
-                    embeds: [embed], 
-                    components: [selectRow, buttonRow] 
+                if (!message) { removeStoreMessage(messageId); continue; }
+
+                // Detect which store this message belongs to by checking embed title
+                const existingEmbed = message.embeds?.[0];
+                const title = existingEmbed?.title || '';
+                const isRbxg = title.includes('Roblox');
+                const typesSnap = isRbxg ? rbxgTypes : rfTypes;
+                const commandModule = isRbxg ? rbxgCommand : rfCommand;
+                const customId = isRbxg ? 'shop_select_rbxg' : 'shop_select_rf';
+
+                if (typesSnap.empty) continue;
+
+                const embed = await commandModule.buildStoreEmbed(typesSnap, stockMap);
+
+                const selectMenu = new StringSelectMenuBuilder()
+                    .setCustomId(customId)
+                    .setPlaceholder(isRbxg ? '💳 Select a gift card to purchase' : '💳 Select a package to purchase');
+
+                typesSnap.forEach((doc) => {
+                    const data = doc.data();
+                    const price = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(data.sellingPrice || 0);
+                    const stock = stockMap[doc.id] || 0;
+                    selectMenu.addOptions(
+                        new StringSelectMenuOptionBuilder()
+                            .setLabel(`${data.name} - ${price}`)
+                            .setDescription(`Stock: ${stock} available | Click to buy`)
+                            .setValue(`buy_${doc.id}`)
+                            .setEmoji(stock > 0 ? (isRbxg ? '🎁' : '📦') : '❌')
+                    );
                 });
+
+                const selectRow = new ActionRowBuilder().addComponents(selectMenu);
+                await message.edit({ embeds: [embed], components: [selectRow] });
                 successCount++;
             } catch (err) {
-                // Message might be deleted or inaccessible
-                if (err.code === 10008) { // Unknown Message
-                    removeStoreMessage(messageId);
-                }
+                if (err.code === 10008) { removeStoreMessage(messageId); }
                 failCount++;
             }
         }
-        
+
         console.log(`[Broadcast] Success: ${successCount}, Failed: ${failCount}`);
     } catch (err) {
         console.error('[Broadcast] Error:', err);
