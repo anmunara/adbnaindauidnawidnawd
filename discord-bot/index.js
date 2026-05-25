@@ -185,10 +185,12 @@ async function setupRealtimeStockListener() {
         }
 
         // Subscribe to real-time updates of redeem_codes
+        let isFirstSnapshot = true;
+
         stockUnsubscribe = db.collection('redeem_codes').onSnapshot(snapshot => {
             // Update stock cache
             const newStockMap = {};
-            
+
             snapshot.forEach(doc => {
                 const data = doc.data();
                 if (data.typeId && !data.isUsed) { // Only count unused codes
@@ -198,6 +200,17 @@ async function setupRealtimeStockListener() {
 
             console.log('[Stock Update] Real-time stock sync:', newStockMap);
             updateStockCache(newStockMap);
+
+            // Skip broadcast on initial snapshot (bot startup) to avoid unnecessary updates
+            if (isFirstSnapshot) {
+                isFirstSnapshot = false;
+                return;
+            }
+
+            // Broadcast stock change to all active store embeds
+            broadcastStockUpdate().catch(err => {
+                console.error('[Stock Update] Broadcast failed:', err);
+            });
         }, error => {
             console.error('[Stock Listener Error]:', error);
             // Retry after 5 seconds
