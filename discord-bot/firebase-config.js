@@ -38,10 +38,15 @@ if (!admin.apps.length) {
         }
     } else {
         console.warn('WARNING: No valid Firebase Service Account found. Database operations will fail.');
-        // Initialize with default (might work if on GCP, but unlikely here) or don't initialize
     }
 }
 
 const db = admin.apps.length ? admin.firestore() : null;
+
+// Use REST transport instead of gRPC to avoid ETIMEDOUT on some VPS environments
+if (db) {
+    db.settings({ preferRest: true });
+    console.log('Firestore using REST mode');
+}
 
 module.exports = { admin, db };
