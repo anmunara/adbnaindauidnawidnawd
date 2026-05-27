@@ -1,9 +1,7 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const { Client, GatewayIntentBits, Collection, Events, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { db } = require('./firebase-config');
-const { createInvoice } = require('./utils/duitku');
-const { updateStockCache, decrementStock, incrementStock, refreshStockFromDB, getStockCache } = require('./utils/stockCache');
+const { updateStockCache, getStockCache } = require('./utils/stockCache');
 const { getAllStoreMessages, removeStoreMessage } = require('./utils/storeMessages');
 const fs = require('fs');
 
@@ -129,39 +127,6 @@ async function broadcastStockUpdate() {
     }
 }
 
-// Helper: Refresh specific store display message (for single updates)
-async function refreshStoreDisplay() {
-    await broadcastStockUpdate();
-}
-
-// Helper: Build fresh store dropdown from Firestore (using real-time cache)
-async function buildStoreDropdown() {
-    const { getStockCache } = require('./utils/stockCache');
-    const typesSnap = await db.collection('game_types').orderBy('createdAt', 'desc').get();
-    
-    // Use real-time stock cache instead of querying every time
-    const stockMap = getStockCache();
-
-    const menu = new StringSelectMenuBuilder()
-        .setCustomId('shop_select')
-        .setPlaceholder('🔻 Pilih Paket Cloudphone Di Sini...');
-
-    typesSnap.forEach(doc => {
-        const d = doc.data();
-        const p = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(d.sellingPrice || 0);
-        const s = stockMap[doc.id] || 0;
-        menu.addOptions(
-            new StringSelectMenuOptionBuilder()
-                .setLabel(`${d.name} - ${p}`)
-                .setDescription(`Stok: ${s} unit | Klik untuk membeli`)
-                .setValue(`buy_${doc.id}`)
-                .setEmoji(s > 0 ? '📦' : '❌')
-        );
-    });
-
-    return new ActionRowBuilder().addComponents(menu);
-}
-
 // Fetch products from local web API (bypasses Firestore connection issues)
 const WEB_API_URL = 'http://localhost:3000';
 
@@ -246,14 +211,10 @@ client.on(Events.InteractionCreate, async interaction => {
         // 🔄 Refresh Store Button
         if (customId === 'refresh_store') {
             await interaction.deferReply({ ephemeral: true });
-            
+
             try {
-                // Refresh stock from DB first
-                await refreshStockFromDB(db);
-                
-                // Broadcast update to ALL store messages
+                await pollStockFromWeb();
                 await broadcastStockUpdate();
-                
                 await interaction.editReply('✅ Stock refreshed for all users!');
             } catch (err) {
                 console.error('[Refresh Button Error]:', err);
@@ -262,19 +223,20 @@ client.on(Events.InteractionCreate, async interaction => {
             return;
         }
 
-        // Cek Status Pembayaran button
+        // Cek Status Pembayaran button (via web API)
         if (customId.startsWith('cek_status_')) {
             await interaction.deferReply({ ephemeral: true });
             const orderId = customId.replace('cek_status_', '');
 
             try {
-                const txDoc = await db.collection('transactions').doc(orderId).get();
+                const res = await fetch(`${WEB_API_URL}/api/bot/order-status?orderId=${encodeURIComponent(orderId)}`);
+                const json = await res.json();
 
-                if (!txDoc.exists) {
+                if (!json.success) {
                     return interaction.editReply('❌ Order tidak ditemukan.');
                 }
 
-                const tx = txDoc.data();
+                const tx = json.order;
                 let statusEmoji = '⏳';
                 let statusText = 'Menunggu Pembayaran';
                 let color = 0xFFA500;
@@ -294,7 +256,7 @@ client.on(Events.InteractionCreate, async interaction => {
                     .setTitle(`${statusEmoji} Status Pembayaran`)
                     .addFields(
                         { name: '📦 Item', value: tx.itemName || '-', inline: true },
-                        { name: '💰 Jumlah', value: `Rp ${(tx.amount || 0).toLocaleString('id-ID')}`, inline: true },
+                        { name: '💰 Jumlah', value: `Rp ${(tx.price || 0).toLocaleString('id-ID')}`, inline: true },
                         { name: '📋 Status', value: `**${statusText}**`, inline: false },
                         { name: '🆔 Order ID', value: `\`${orderId}\``, inline: false }
                     )
@@ -310,14 +272,9 @@ client.on(Events.InteractionCreate, async interaction => {
                 await interaction.editReply('❌ Gagal mengecek status pembayaran.');
             }
         }
-
-        // Other buy buttons (placeholder)
-        else if (customId.startsWith('buy_')) {
-            await interaction.reply({ content: `Fitur pembelian untuk item ID ${customId.split('_')[1]} akan segera hadir!`, ephemeral: true });
-        }
     }
 
-    // Handle Dropdown Menu (Shop Select)
+    // Handle Dropdown Menu (Shop Select) — via web API
     else if (interaction.isStringSelectMenu()) {
         if (interaction.customId === 'shop_select_rf' || interaction.customId === 'shop_select_rbxg') {
             await interaction.deferReply({ ephemeral: true });
@@ -327,142 +284,66 @@ client.on(Events.InteractionCreate, async interaction => {
                 const docId = selectedValue.split('_')[1];
 
                 try {
-                    // 1. Fetch Product Details & Check Stock
-                    const productRef = db.collection('game_types').doc(docId);
-                    const productDoc = await productRef.get();
-
-                    if (!productDoc.exists) {
-                        return interaction.editReply('❌ Produk tidak ditemukan.');
-                    }
-
-                    const productData = productDoc.data();
-
-                    const price = productData.sellingPrice;
-                    const paymentAmount = Math.ceil(price * 1.007); // +0.7% fee included
-                    const merchantOrderId = `CP-${Date.now()}-${interaction.user.id.slice(-4)}`;
-
-                    // Check stock availability (no reserve, just check)
-                    const stockCheck = await db.collection('redeem_codes')
-                        .where('typeId', '==', docId)
-                        .where('isUsed', '==', false)
-                        .limit(1)
-                        .get();
-
-                    if (stockCheck.empty) {
-                        return interaction.editReply('❌ **Stok Habis!** Silahkan tunggu restock.');
-                    }
-
-                    // 2. Create Transaction in Firestore
-                    await db.collection('transactions').doc(merchantOrderId).set({
-                        userId: interaction.user.id,
-                        username: interaction.user.username,
-                        itemId: docId,
-                        itemName: productData.name,
-                        price: paymentAmount,
-                        merchantOrderId: merchantOrderId,
-                        status: 'PENDING',
-                        createdAt: new Date(),
-                        delivered: null,
-                        paymentUrl: ''
+                    // 1. Create order via web API (handles product check, stock, Duitku, Firestore)
+                    const orderRes = await fetch(`${WEB_API_URL}/api/bot/order-create`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: interaction.user.id,
+                            username: interaction.user.username,
+                            itemId: docId,
+                        }),
                     });
+                    const orderData = await orderRes.json();
 
-                    // 3. Generate Duitku Payment (v2/inquiry - Direct QR Generation)
-                    if (!process.env.DUITKU_MERCHANT_CODE || !process.env.DUITKU_API_KEY) {
-                        return interaction.editReply('⚠️ Sistem pembayaran belum dikonfigurasi. Hubungi Admin.');
+                    if (!orderData.success) {
+                        if (orderData.message === 'Out of stock') {
+                            return interaction.editReply('❌ **Stok Habis!** Silahkan tunggu restock.');
+                        }
+                        return interaction.editReply(`❌ ${orderData.message}`);
                     }
 
-                    let paymentData;
-                    try {
-                        // v2/inquiry: Generate QR langsung dengan SQ (QRIS)
-                        paymentData = await createInvoice(
-                            interaction.user.id,
-                            productData.name,
-                            paymentAmount,
-                            merchantOrderId,
-                            'customer@discord.com',
-                            'SQ' // QRIS
-                        );
-
-                        await db.collection('transactions').doc(merchantOrderId).update({
-                            qrString: paymentData.qrString || '',
-                            vaNumber: paymentData.vaNumber || '',
-                            reference: paymentData.reference || '',
-                            expiryTime: paymentData.expiryTime || '',
-                            paymentMethod: 'SQ'
-                        });
-                    } catch (paymentError) {
-                        console.error("Payment Gen Error:", paymentError);
-                        return interaction.editReply(`❌ Gagal membuat pembayaran. Detail: ${paymentError.message}`);
-                    }
-
-                    // 4. Send QR Code to Discord DM
-                    // Use expiryTime from Duitku API response (convert if needed)
-                    let expiryTime = paymentData.expiryTime;
-                    
-                    // If expiryTime is a timestamp string, convert to Unix timestamp
+                    // 2. Build QR embed
+                    let expiryTime = orderData.expiryTime;
                     if (typeof expiryTime === 'string') {
                         expiryTime = Math.floor(new Date(expiryTime).getTime() / 1000);
                     }
-                    
-                    // Fallback to 10 minutes if not provided
                     if (!expiryTime) {
                         expiryTime = Math.floor(Date.now() / 1000) + (10 * 60);
                     }
-                    
-                    // Create QR Code image URL
-                    const qrImageUrl = paymentData.qrString 
-                        ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(paymentData.qrString)}`
+
+                    const qrImageUrl = orderData.qrString
+                        ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(orderData.qrString)}`
                         : null;
 
-                    // QR Code Discord Embed
                     const dmEmbed = new EmbedBuilder()
                         .setColor(0x00AA00)
                         .setTitle('📱 TAGIHAN PEMBAYARAN QRIS')
                         .setDescription(`Halo **${interaction.user.username}**,\nSilakan scan QR Code di bawah untuk membayar.\n\n✅ **Metode:** QRIS (Semua E-Wallet)\n⏳ **Expired:** <t:${expiryTime}:R>`)
                         .addFields(
-                            { name: '📦 Item', value: productData.name, inline: true },
-                            { name: '💰 Total', value: `Rp ${paymentAmount.toLocaleString('id-ID')}`, inline: true },
+                            { name: '📦 Item', value: orderData.itemName, inline: true },
+                            { name: '💰 Total', value: `Rp ${orderData.paymentAmount.toLocaleString('id-ID')}`, inline: true },
                             { name: '⏰ Batas Bayar', value: `<t:${expiryTime}:T>`, inline: false },
                             { name: '📱 Cara Bayar', value: '1. Buka e-wallet Anda (GoPay, OVO, Dana, ShopeePay, LinkAja, dll)\n2. Scan QR Code di atas\n3. Ikuti instruksi pembayaran\n4. Kode akan otomatis dikirim setelah bayar ✔️' }
                         )
                         .setImage(qrImageUrl)
-                        .setFooter({ text: `Order: ${merchantOrderId}` });
+                        .setFooter({ text: `Order: ${orderData.merchantOrderId}` });
 
-                    // Button: Cek Status Pembayaran
                     const statusButton = new ButtonBuilder()
-                        .setCustomId(`cek_status_${merchantOrderId}`)
+                        .setCustomId(`cek_status_${orderData.merchantOrderId}`)
                         .setLabel('📋 Cek Status Pembayaran')
                         .setStyle(ButtonStyle.Success);
 
                     const buttonRow = new ActionRowBuilder().addComponents(statusButton);
 
                     try {
-                        const dmMsg = await interaction.user.send({ embeds: [dmEmbed], components: [buttonRow] });
-                        // Save DM message ID for reference
-                        await db.collection('transactions').doc(merchantOrderId).update({
-                            dmMessageId: dmMsg.id,
-                            dmChannelId: dmMsg.channel.id
-                        });
-                        
+                        await interaction.user.send({ embeds: [dmEmbed], components: [buttonRow] });
                         await interaction.editReply(`✅ **Pembayaran Berhasil Dibuat!**\nSilahkan cek **DM Discord** Anda untuk scan QRIS.\n\n*(Jika DM tertutup, tolong buka dulu)*`);
                     } catch (dmError) {
                         await interaction.editReply({
                             content: '⚠️ Gagal mengirim DM. Pastikan DM Anda terbuka.',
                             ephemeral: true
                         });
-                    }
-
-                    // 5. Reset Dropdown & Save Message Reference
-                    try {
-                        const originalMessage = interaction.message;
-                        if (originalMessage) {
-                            storeMessageRef = originalMessage;
-                            const freshRow = await buildStoreDropdown();
-                            await originalMessage.edit({ components: [freshRow] });
-                            console.log('[Shop] Dropdown refreshed after purchase');
-                        }
-                    } catch (resetErr) {
-                        console.error("Dropdown Reset Error:", resetErr);
                     }
 
                 } catch (err) {
@@ -511,88 +392,78 @@ if (!process.env.DISCORD_TOKEN) {
 }
 
 // ---------------------------------------------
-// Transaction Listener (Real-time Delivery)
+// Delivery Poller (replaces broken onSnapshot)
+// Polls web API every 10 seconds for paid orders
 // ---------------------------------------------
-const transactionListener = db.collection('transactions')
-    .where('status', '==', 'SUCCESS')
-    .where('delivered', '==', null)
-    .onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(async change => {
-            if (change.type === 'added' || change.type === 'modified') {
-                const docId = change.doc.id;
-                const data = change.doc.data();
+async function pollPendingDeliveries() {
+    try {
+        const res = await fetch(`${WEB_API_URL}/api/bot/pending-deliveries`);
+        const json = await res.json();
+        if (!json.success || !json.pending.length) return;
 
-                // Anti-duplicate: skip if already being delivered
-                if (deliveringSet.has(docId)) return;
-                if (data.delivered) return;
+        for (const order of json.pending) {
+            if (deliveringSet.has(order.docId)) continue;
+            deliveringSet.add(order.docId);
 
-                // Lock this order
-                deliveringSet.add(docId);
+            try {
+                const user = await client.users.fetch(order.userId);
+                if (user) {
+                    const embed = new EmbedBuilder()
+                        .setColor(0x00FF00)
+                        .setTitle('📦 PESANAN DITERIMA!')
+                        .setDescription(`Terima kasih **${order.username}**, pembayaran Anda telah terkonfirmasi.`)
+                        .addFields(
+                            { name: 'Item', value: order.itemName, inline: true },
+                            { name: 'Order ID', value: order.merchantOrderId, inline: true },
+                            { name: '🔑 KODE AKSES ANDA', value: `\`\`\`${order.redeemCode || 'Hubungi Admin'}\`\`\`` }
+                        )
+                        .setFooter({ text: 'Simpan kode ini baik-baik! • Cloudphone Manager' })
+                        .setTimestamp();
 
-                try {
-                    // Double-check from DB (in case of race)
-                    const freshDoc = await db.collection('transactions').doc(docId).get();
-                    const freshData = freshDoc.data();
-                    if (freshData.delivered) {
-                        deliveringSet.delete(docId);
-                        return;
-                    }
+                    await user.send({ embeds: [embed] });
+                    console.log(`[Delivery] Code sent to ${order.username} (${order.userId})`);
 
-                    const user = await client.users.fetch(data.userId);
-                    if (user) {
-                        const embed = new EmbedBuilder()
-                            .setColor(0x00FF00)
-                            .setTitle('📦 PESANAN DITERIMA!')
-                            .setDescription(`Terima kasih **${data.username}**, pembayaran Anda telah terkonfirmasi.`)
-                            .addFields(
-                                { name: 'Item', value: data.itemName, inline: true },
-                                { name: 'Order ID', value: data.merchantOrderId, inline: true },
-                                { name: '🔑 KODE AKSES ANDA', value: `\`\`\`${data.redeemCode || 'Hubungi Admin'}\`\`\`` }
-                            )
-                            .setFooter({ text: 'Simpan kode ini baik-baik! • Cloudphone Manager' })
-                            .setTimestamp();
-
-                        await user.send({ embeds: [embed] });
-                        console.log(`Delivered code to ${data.username} (${data.userId})`);
-
-                        // Delete old QRIS DM to keep chat clean
-                        if (data.dmMessageId && data.dmChannelId) {
-                            try {
-                                const dmChannel = await client.channels.fetch(data.dmChannelId);
-                                const oldMsg = await dmChannel.messages.fetch(data.dmMessageId);
-                                await oldMsg.delete();
-                                console.log(`Deleted QRIS DM for ${docId}`);
-                            } catch (delErr) {
-                                console.error('Failed to delete QRIS DM:', delErr.message);
-                            }
-                        }
-
-                        // Update transaction as delivered
-                        await db.collection('transactions').doc(docId).update({
-                            delivered: true,
-                            deliveredAt: new Date()
-                        });
-
-                        // 🔄 UPDATE STOCK CACHE - Decrement stock for the item type
-                        if (data.itemId) {
-                            decrementStock(data.itemId);
-                            console.log(`[Delivery] Stock decremented for type: ${data.itemId}`);
-                        }
-
-                        // 🔄 BROADCAST STOCK UPDATE to ALL active store messages
+                    // Delete old QRIS DM
+                    if (order.dmMessageId && order.dmChannelId) {
                         try {
-                            await broadcastStockUpdate();
-                        } catch (broadcastErr) {
-                            console.error('Failed to broadcast stock update:', broadcastErr);
+                            const dmChannel = await client.channels.fetch(order.dmChannelId);
+                            const oldMsg = await dmChannel.messages.fetch(order.dmMessageId);
+                            await oldMsg.delete();
+                        } catch (delErr) {
+                            // Ignore - message might already be deleted
                         }
                     }
-                } catch (error) {
-                    console.error(`Failed to deliver code to ${data.userId}:`, error);
-                } finally {
-                    deliveringSet.delete(docId);
+
+                    // Mark as delivered via web API
+                    await fetch(`${WEB_API_URL}/api/bot/pending-deliveries`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ docId: order.docId }),
+                    });
+
+                    console.log(`[Delivery] Marked ${order.docId} as delivered`);
+
+                    // Broadcast stock update
+                    await pollStockFromWeb();
                 }
+            } catch (err) {
+                console.error(`[Delivery] Failed for ${order.userId}:`, err.message);
+            } finally {
+                deliveringSet.delete(order.docId);
             }
-        });
-    }, error => {
-        console.error("Transaction Listener Error:", error);
-    });
+        }
+    } catch (err) {
+        // Silent fail - will retry next poll
+        if (!err.message.includes('fetch failed')) {
+            console.error('[Delivery Poll] Error:', err.message);
+        }
+    }
+}
+
+// Start delivery polling after bot is ready
+client.once(Events.ClientReady, () => {
+    setTimeout(() => {
+        setInterval(pollPendingDeliveries, 10000); // Every 10 seconds
+        console.log('[Bot] Delivery polling started (every 10s)');
+    }, 5000);
+});
