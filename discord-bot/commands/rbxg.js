@@ -4,18 +4,31 @@ const { addStoreMessage, clearOldMessages } = require('../utils/storeMessages');
 
 const WEB_API_URL = 'http://localhost:3000';
 
+// Returns:
+//   - an array of products on success ([] means the API genuinely returned zero products)
+//   - null when the request FAILED (network error or {success:false})
 async function fetchProducts(category) {
     try {
         const res = await fetch(`${WEB_API_URL}/api/products/get`);
         const json = await res.json();
-        if (json.success) {
+        if (json.success && Array.isArray(json.data)) {
             return json.data.filter(p => (p.category || 'redfinger') === category);
         }
-        return [];
+        return null;
     } catch (err) {
         console.error('[Fetch Products Error]:', err.message);
-        return [];
+        return null;
     }
+}
+
+// Fetch with one retry: the upstream API may be briefly rate-limited.
+async function fetchProductsWithRetry(category) {
+    let products = await fetchProducts(category);
+    if (products === null) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        products = await fetchProducts(category);
+    }
+    return products;
 }
 
 function buildStoreEmbedFromProducts(products) {
@@ -75,7 +88,13 @@ module.exports = {
         try {
             clearOldMessages();
 
-            const products = await fetchProducts('roblox');
+            const products = await fetchProductsWithRetry('roblox');
+
+            // null = the API request failed (e.g. rate-limited). Show a transient message
+            // instead of "Store Closed" so users know to retry.
+            if (products === null) {
+                return await interaction.editReply('⚠️ Toko sedang sibuk, coba lagi sebentar lagi.');
+            }
 
             if (products.length === 0) {
                 return await interaction.editReply('❌ **Store Closed.** No gift cards available at the moment.');

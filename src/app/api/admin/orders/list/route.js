@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { requireAdmin } from '@/lib/admin-auth';
+import { cacheGet, cacheSet } from '@/lib/memoryCache';
+
+// This endpoint returns real document data and is polled by the admin orders
+// table. Bound the scan with a default limit (newest-first) and cache briefly.
+// Pass ?fresh=1 to bypass the cache and ?limit=N to widen the window.
+const ORDERS_LIST_TTL_MS = 20 * 1000;
+const DEFAULT_LIMIT = 200;
+const MAX_LIMIT = 1000;
 
 function toIso(v) {
     if (!v) return null;
@@ -18,9 +26,24 @@ export async function GET(req) {
     }
 
     try {
+        const url = new URL(req.url);
+        const fresh = url.searchParams.get('fresh') === '1';
+        const limit = Math.min(
+            Math.max(parseInt(url.searchParams.get('limit') || String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT, 1),
+            MAX_LIMIT
+        );
+
+        const cacheKey = `admin:orders:list:${limit}`;
+        if (!fresh) {
+            const cached = cacheGet(cacheKey, ORDERS_LIST_TTL_MS);
+            if (cached !== undefined) {
+                return NextResponse.json({ success: true, data: cached });
+            }
+        }
+
         const [ordersSnap, transactionsSnap, typesSnap] = await Promise.all([
-            adminDb.collection('orders').get(),
-            adminDb.collection('transactions').get(),
+            adminDb.collection('orders').orderBy('createdAt', 'desc').limit(limit).get(),
+            adminDb.collection('transactions').orderBy('createdAt', 'desc').limit(limit).get(),
             adminDb.collection('game_types').get(),
         ]);
 
@@ -70,7 +93,13 @@ export async function GET(req) {
             return bTime - aTime;
         });
 
-        return NextResponse.json({ success: true, data: orders });
+        // The two collections were each limited; trim the merged result so the
+        // window stays consistent regardless of how rows split between them.
+        const data = orders.slice(0, limit);
+
+        cacheSet(cacheKey, data);
+
+        return NextResponse.json({ success: true, data });
     } catch (error) {
         console.error('[Orders List] Error:', error);
         return NextResponse.json(

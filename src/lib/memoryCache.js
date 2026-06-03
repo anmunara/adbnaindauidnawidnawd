@@ -24,6 +24,16 @@ export function cacheSet(key, value) {
     store.set(key, { v: value, t: Date.now() });
 }
 
+/**
+ * Returns the cached value for `key` ignoring TTL, or undefined if never set.
+ * Used for "last known good" fallback reads (e.g. serving stale data when an
+ * upstream like Firestore errors out).
+ */
+export function cachePeek(key) {
+    const entry = store.get(key);
+    return entry ? entry.v : undefined;
+}
+
 /** Removes a single key (optional manual invalidation). */
 export function cacheDelete(key) {
     store.delete(key);

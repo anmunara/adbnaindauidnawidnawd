@@ -130,11 +130,14 @@ async function broadcastStockUpdate() {
 // Fetch products from local web API (bypasses Firestore connection issues)
 const WEB_API_URL = 'http://localhost:3000';
 
+// Returns the products array on success (may be []), or null when the request
+// FAILED (network error or {success:false}). Callers must treat null as "keep
+// last known good" and never let it wipe the in-memory stock cache.
 async function fetchProductsFromWeb() {
     try {
         const res = await fetch(`${WEB_API_URL}/api/products/get`);
         const json = await res.json();
-        if (json.success) return json.data;
+        if (json.success && Array.isArray(json.data)) return json.data;
         console.error('[Web API] Failed:', json.error);
         return null;
     } catch (err) {
@@ -154,7 +157,8 @@ let lastStockJson = '';
 async function pollStockFromWeb() {
     const products = await fetchProductsFromWeb();
     if (!products) {
-        // Treat a null response as a failure for backoff scheduling
+        // Failed fetch (null): count it for backoff and bail out WITHOUT touching
+        // updateStockCache, so the last known good stock stays in memory.
         stockPollFailures++;
         return;
     }

@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { requireAdmin } from '@/lib/admin-auth';
+import { cacheGet, cacheSet } from '@/lib/memoryCache';
+
+// Analytics scans ALL orders + transactions + game_types on every call.
+// The admin dashboard auto-refreshes, so cache the computed payload briefly
+// to absorb that polling. Pass ?fresh=1 to bypass.
+const ANALYTICS_TTL_MS = 45 * 1000;
 
 function toDate(v) {
     if (!v) return null;
@@ -28,6 +34,15 @@ export async function GET(req) {
     try {
         const url = new URL(req.url);
         const days = Math.min(parseInt(url.searchParams.get('days') || '14', 10), 90);
+        const fresh = url.searchParams.get('fresh') === '1';
+
+        const cacheKey = `analytics:${days}`;
+        if (!fresh) {
+            const cached = cacheGet(cacheKey, ANALYTICS_TTL_MS);
+            if (cached !== undefined) {
+                return NextResponse.json({ success: true, data: cached });
+            }
+        }
 
         const now = new Date();
         const startDate = new Date(now);
@@ -144,24 +159,25 @@ export async function GET(req) {
         // Prefer unique customer count derived from orders; fallback to users collection size
         const customersCount = uniqueCustomers.size || usersCountSnap.data().count || 0;
 
-        return NextResponse.json({
-            success: true,
-            data: {
-                totalRevenue,
-                successCount,
-                pendingCount,
-                failedCount,
-                ordersTotal: allOrders.length,
-                avgOrder: successCount > 0 ? Math.round(totalRevenue / successCount) : 0,
-                typesCount: typesSnap.size,
-                codesAvailable,
-                codesUsed,
-                customersCount,
-                revenueDelta: Number.isFinite(revenueDelta) ? revenueDelta : 0,
-                daily,
-                topProducts,
-            },
-        });
+        const data = {
+            totalRevenue,
+            successCount,
+            pendingCount,
+            failedCount,
+            ordersTotal: allOrders.length,
+            avgOrder: successCount > 0 ? Math.round(totalRevenue / successCount) : 0,
+            typesCount: typesSnap.size,
+            codesAvailable,
+            codesUsed,
+            customersCount,
+            revenueDelta: Number.isFinite(revenueDelta) ? revenueDelta : 0,
+            daily,
+            topProducts,
+        };
+
+        cacheSet(cacheKey, data);
+
+        return NextResponse.json({ success: true, data });
     } catch (error) {
         console.error('[Analytics] Error:', error);
         return NextResponse.json(

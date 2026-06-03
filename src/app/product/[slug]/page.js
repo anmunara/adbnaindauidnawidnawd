@@ -88,7 +88,7 @@ export default function ProductPage() {
       }
     };
     fetchProducts();
-    const interval = setInterval(fetchProducts, 15000);
+    const interval = setInterval(fetchProducts, 60000);
     return () => clearInterval(interval);
   }, []);
 

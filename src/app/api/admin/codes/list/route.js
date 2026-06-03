@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { requireAdmin } from '@/lib/admin-auth';
+import { cacheGet, cacheSet } from '@/lib/memoryCache';
+
+// redeem_codes can be a large collection. The admin codes table reads real
+// document data, so keep the docs but cache the result briefly to absorb
+// repeated views/polling. Pass ?fresh=1 to bypass.
+const CODES_LIST_TTL_MS = 20 * 1000;
 
 function toIso(v) {
     if (!v) return null;
@@ -20,6 +26,15 @@ export async function GET(req) {
     try {
         const url = new URL(req.url);
         const typeId = url.searchParams.get('typeId');
+        const fresh = url.searchParams.get('fresh') === '1';
+
+        const cacheKey = `admin:codes:list:${typeId || 'all'}`;
+        if (!fresh) {
+            const cached = cacheGet(cacheKey, CODES_LIST_TTL_MS);
+            if (cached !== undefined) {
+                return NextResponse.json({ success: true, data: cached });
+            }
+        }
 
         let query = adminDb.collection('redeem_codes');
         if (typeId) query = query.where('typeId', '==', typeId);
@@ -46,6 +61,8 @@ export async function GET(req) {
             const bTime = new Date(b.createdAt || 0).getTime();
             return bTime - aTime;
         });
+
+        cacheSet(cacheKey, codes);
 
         return NextResponse.json({ success: true, data: codes });
     } catch (error) {

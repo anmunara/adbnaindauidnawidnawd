@@ -5,6 +5,21 @@ if (!admin.apps.length) {
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
+    // Surface a misconfigured environment (e.g. a VPS missing service-account
+    // env vars) clearly in the logs — otherwise adminDb is silently null and
+    // every Firestore call fails downstream.
+    const missing = [
+        !projectId && 'FIREBASE_PROJECT_ID',
+        !clientEmail && 'FIREBASE_CLIENT_EMAIL',
+        !privateKey && 'FIREBASE_PRIVATE_KEY',
+    ].filter(Boolean);
+    if (missing.length) {
+        console.warn(
+            `[firebaseAdmin] Missing env var(s): ${missing.join(', ')}. ` +
+            'Firebase Admin will NOT initialize; Firestore calls will fail.'
+        );
+    }
+
     if (projectId && clientEmail && privateKey) {
         try {
             admin.initializeApp({

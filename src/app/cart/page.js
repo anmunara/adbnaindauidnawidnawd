@@ -80,7 +80,7 @@ export default function CartPage() {
       } catch (error) {}
     };
     fetchProducts();
-    const interval = setInterval(fetchProducts, 15000);
+    const interval = setInterval(fetchProducts, 60000);
     return () => clearInterval(interval);
   }, []);
 
