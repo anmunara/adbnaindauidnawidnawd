@@ -34,12 +34,15 @@ export async function GET(req) {
         startDate.setDate(startDate.getDate() - (days - 1));
         startDate.setHours(0, 0, 0, 0);
 
-        const [ordersSnap, transactionsSnap, typesSnap, codesSnap, usersSnap] = await Promise.all([
+        const [ordersSnap, transactionsSnap, typesSnap, codesAvailableSnap, codesUsedSnap, usersCountSnap] = await Promise.all([
             adminDb.collection('orders').get(),
             adminDb.collection('transactions').get(),
             adminDb.collection('game_types').get(),
-            adminDb.collection('redeem_codes').get(),
-            adminDb.collection('users').get().catch(() => ({ size: 0, docs: [] })),
+            // Code inventory is only ever COUNTED, never read field-by-field —
+            // use aggregation (~1 read per 1000 docs) instead of full scans.
+            adminDb.collection('redeem_codes').where('isUsed', '==', false).count().get(),
+            adminDb.collection('redeem_codes').where('isUsed', '==', true).count().get(),
+            adminDb.collection('users').count().get().catch(() => ({ data: () => ({ count: 0 }) })),
         ]);
 
         // Build type lookup map: typeId -> { name, sellingPrice }
@@ -123,13 +126,9 @@ export async function GET(req) {
             .sort((a, b) => b.revenue - a.revenue)
             .slice(0, 5);
 
-        // Code inventory
-        let codesAvailable = 0;
-        let codesUsed = 0;
-        codesSnap.docs.forEach((d) => {
-            if (d.data().isUsed) codesUsed += 1;
-            else codesAvailable += 1;
-        });
+        // Code inventory (from aggregation counts)
+        const codesAvailable = codesAvailableSnap.data().count;
+        const codesUsed = codesUsedSnap.data().count;
 
         const daily = Object.values(buckets);
 
@@ -143,7 +142,7 @@ export async function GET(req) {
         const revenueDelta = prevSum > 0 ? ((currSum - prevSum) / prevSum) * 100 : (currSum > 0 ? 100 : 0);
 
         // Prefer unique customer count derived from orders; fallback to users collection size
-        const customersCount = uniqueCustomers.size || usersSnap.size || 0;
+        const customersCount = uniqueCustomers.size || usersCountSnap.data().count || 0;
 
         return NextResponse.json({
             success: true,

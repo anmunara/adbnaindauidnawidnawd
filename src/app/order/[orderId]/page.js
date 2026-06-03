@@ -60,12 +60,19 @@ export default function OrderPage({ params }) {
     const [error, setError] = useState('');
 
     useEffect(() => {
+        let interval = null;
         const fetchOrder = async () => {
             try {
                 const res = await fetch(`/api/transaction/check?orderId=${orderId}`);
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.message || 'Order not found');
                 setOrder(data.order);
+                // Once the order reaches a terminal state its data is immutable,
+                // so stop polling to avoid endless reads on abandoned tabs.
+                if (interval && (data.order?.status === 'SUCCESS' || data.order?.status === 'FAILED')) {
+                    clearInterval(interval);
+                    interval = null;
+                }
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -73,8 +80,10 @@ export default function OrderPage({ params }) {
             }
         };
         fetchOrder();
-        const interval = setInterval(fetchOrder, 10000);
-        return () => clearInterval(interval);
+        interval = setInterval(fetchOrder, 10000);
+        return () => {
+            if (interval) clearInterval(interval);
+        };
     }, [orderId]);
 
     const copyToClipboard = (text) => {

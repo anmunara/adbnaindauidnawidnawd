@@ -143,13 +143,22 @@ async function fetchProductsFromWeb() {
     }
 }
 
-// Poll stock from web API every 15 seconds
-let stockPollInterval = null;
+// Poll stock from web API every 60 seconds (gentle on Firestore quota).
+// Stock also refreshes right after a delivery and via the "refresh_store" button.
+const STOCK_POLL_BASE_MS = 60000;
+const STOCK_POLL_MAX_MS = 5 * 60000; // cap backoff at 5 minutes
+let stockPollTimer = null;
+let stockPollFailures = 0;
 let lastStockJson = '';
 
 async function pollStockFromWeb() {
     const products = await fetchProductsFromWeb();
-    if (!products) return;
+    if (!products) {
+        // Treat a null response as a failure for backoff scheduling
+        stockPollFailures++;
+        return;
+    }
+    stockPollFailures = 0;
 
     const newStockMap = {};
     products.forEach(p => {
@@ -171,6 +180,18 @@ async function pollStockFromWeb() {
     }
 }
 
+// Self-scheduling loop with exponential backoff on repeated failures
+function scheduleStockPoll() {
+    const delay = Math.min(STOCK_POLL_BASE_MS * Math.pow(2, stockPollFailures), STOCK_POLL_MAX_MS);
+    if (stockPollFailures > 0) {
+        console.log(`[Stock Poll] Backing off, next poll in ${Math.round(delay / 1000)}s (failures: ${stockPollFailures})`);
+    }
+    stockPollTimer = setTimeout(async () => {
+        await pollStockFromWeb();
+        scheduleStockPoll();
+    }, delay);
+}
+
 // Event: Ready
 client.once(Events.ClientReady, c => {
     console.log(`Ready! Logged in as ${c.user.tag}`);
@@ -180,8 +201,8 @@ client.once(Events.ClientReady, c => {
         await pollStockFromWeb();
         console.log('[Bot] Initial stock loaded from web API');
 
-        stockPollInterval = setInterval(pollStockFromWeb, 15000);
-        console.log('[Bot] Stock polling started (every 15s)');
+        scheduleStockPoll();
+        console.log('[Bot] Stock polling started (every 60s, with backoff)');
     }, 3000); // Wait 3s for web to be ready
 });
 
@@ -393,12 +414,20 @@ if (!process.env.DISCORD_TOKEN) {
 
 // ---------------------------------------------
 // Delivery Poller (replaces broken onSnapshot)
-// Polls web API every 10 seconds for paid orders
+// Polls web API every 15 seconds for paid orders.
+// Kept fast so paid orders are delivered promptly,
+// but backs off if the web API is repeatedly failing.
 // ---------------------------------------------
+const DELIVERY_POLL_BASE_MS = 15000;
+const DELIVERY_POLL_MAX_MS = 2 * 60000; // cap backoff at 2 minutes
+let deliveryPollTimer = null;
+let deliveryPollFailures = 0;
+
 async function pollPendingDeliveries() {
     try {
         const res = await fetch(`${WEB_API_URL}/api/bot/pending-deliveries`);
         const json = await res.json();
+        deliveryPollFailures = 0;
         if (!json.success || !json.pending.length) return;
 
         for (const order of json.pending) {
@@ -453,17 +482,30 @@ async function pollPendingDeliveries() {
             }
         }
     } catch (err) {
-        // Silent fail - will retry next poll
+        // Count failures for backoff; stay silent on transient connection drops
+        deliveryPollFailures++;
         if (!err.message.includes('fetch failed')) {
             console.error('[Delivery Poll] Error:', err.message);
         }
     }
 }
 
+// Self-scheduling loop with exponential backoff on repeated failures
+function scheduleDeliveryPoll() {
+    const delay = Math.min(DELIVERY_POLL_BASE_MS * Math.pow(2, deliveryPollFailures), DELIVERY_POLL_MAX_MS);
+    if (deliveryPollFailures > 0) {
+        console.log(`[Delivery Poll] Backing off, next poll in ${Math.round(delay / 1000)}s (failures: ${deliveryPollFailures})`);
+    }
+    deliveryPollTimer = setTimeout(async () => {
+        await pollPendingDeliveries();
+        scheduleDeliveryPoll();
+    }, delay);
+}
+
 // Start delivery polling after bot is ready
 client.once(Events.ClientReady, () => {
     setTimeout(() => {
-        setInterval(pollPendingDeliveries, 10000); // Every 10 seconds
-        console.log('[Bot] Delivery polling started (every 10s)');
+        scheduleDeliveryPoll();
+        console.log('[Bot] Delivery polling started (every 15s, with backoff)');
     }, 5000);
 });
