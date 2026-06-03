@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "redeem_codes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "typeId", "order": "ASCENDING" },
+        { "fieldPath": "isUsed", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "delivered", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
