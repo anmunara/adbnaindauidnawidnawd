@@ -472,14 +472,21 @@ async function pollPendingDeliveries() {
                         }
                     }
 
-                    // Mark as delivered via web API
-                    await fetch(`${WEB_API_URL}/api/bot/pending-deliveries`, {
+                    // Mark as delivered via web API. MUST send the bot secret;
+                    // without it the endpoint returns 403 and the order stays
+                    // delivered=0, causing the code to be re-sent every poll.
+                    const markRes = await fetch(`${WEB_API_URL}/api/bot/pending-deliveries`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'x-bot-secret': BOT_API_SECRET },
                         body: JSON.stringify({ docId: order.docId }),
                     });
 
-                    console.log(`[Delivery] Marked ${order.docId} as delivered`);
+                    if (!markRes.ok) {
+                        // Do not log success; leave it for retry but warn loudly.
+                        console.error(`[Delivery] FAILED to mark ${order.docId} delivered (HTTP ${markRes.status}) — will retry`);
+                    } else {
+                        console.log(`[Delivery] Marked ${order.docId} as delivered`);
+                    }
 
                     // Stock will refresh on next regular poll cycle (every 60s)
                     console.log(`[Delivery] Stock refresh deferred to next poll cycle`);
