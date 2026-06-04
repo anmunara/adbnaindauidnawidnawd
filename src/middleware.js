@@ -25,9 +25,9 @@ export async function middleware(req) {
     const cspHeader = `
         default-src 'self';
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.googletagmanager.com;
-        style-src 'self' 'unsafe-inline';
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         img-src 'self' blob: data: https://*.cloudhost.id https://*.contabostorage.com https://abahcode.com https://upload.wikimedia.org https://api.qrserver.com https://placehold.co https://images.unsplash.com https://www.googletagmanager.com;
-        font-src 'self';
+        font-src 'self' https://fonts.gstatic.com;
         connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com;
         object-src 'none';
         base-uri 'self';

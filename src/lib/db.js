@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { bustCatalogCache } from './memoryCache.js';
 
 const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'kingblox.db');
 const SCHEMA_PATH = path.join(process.cwd(), 'src', 'lib', 'db', 'schema.sql');
@@ -171,16 +172,19 @@ class DocumentReference {
     async set(data) {
         const { sql, values } = buildInsert(this.collectionName, this.docId, data);
         getDb().prepare(sql).run(...values);
+        bustCatalogCache();
     }
 
     async update(data) {
         const { sql, values } = buildUpdate(this.collectionName, this.docId, data);
         getDb().prepare(sql).run(...values);
+        bustCatalogCache();
     }
 
     async delete() {
         const pk = pkColumn(this.collectionName);
         getDb().prepare(`DELETE FROM ${assertTable(this.collectionName)} WHERE ${pk} = ?`).run(this.docId);
+        bustCatalogCache();
     }
 
     serialize(value) {
@@ -277,7 +281,9 @@ class CollectionReference {
     }
 
     doc(id) {
-        return new DocumentReference(this.name, id);
+        // Auto-generate an id when called without one (Firestore parity).
+        // Without this, .doc().set() would insert a NULL primary key.
+        return new DocumentReference(this.name, id === undefined ? this.generateId() : id);
     }
 
     where(field, operator, value) {
@@ -340,6 +346,7 @@ async function runTransaction(callback) {
     try {
         const result = await callback(transaction);
         database.prepare('COMMIT').run();
+        bustCatalogCache();
         return result;
     } catch (error) {
         database.prepare('ROLLBACK').run();

@@ -38,3 +38,24 @@ export function cachePeek(key) {
 export function cacheDelete(key) {
     store.delete(key);
 }
+
+/**
+ * Removes every key starting with any of the given prefixes.
+ * Used to invalidate list/analytics caches after a mutation so the admin UI
+ * reflects changes immediately instead of after the TTL.
+ */
+export function cacheDeletePrefix(...prefixes) {
+    for (const key of store.keys()) {
+        if (prefixes.some((p) => key.startsWith(p))) {
+            store.delete(key);
+        }
+    }
+}
+
+/**
+ * Invalidate all admin-facing caches (codes/types/orders lists, analytics)
+ * plus the public products feed. Call after any write to those collections.
+ */
+export function bustCatalogCache() {
+    cacheDeletePrefix('admin:codes:list:', 'admin:orders:list:', 'analytics:', 'products:get');
+}
