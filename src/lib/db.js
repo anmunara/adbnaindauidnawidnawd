@@ -119,6 +119,11 @@ function buildInsert(table, docId, data) {
 
     const payload = { ...data };
     if (docId !== null && docId !== undefined) payload[pk] = docId;
+    // Guard: never insert a NULL/empty primary key. Older code paths could
+    // reach here without an id and corrupt the row (breaking edit/delete).
+    if (payload[pk] === null || payload[pk] === undefined || payload[pk] === '') {
+        payload[pk] = Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
+    }
     if (cols.has('created_at') && !payload.created_at) payload.created_at = now;
     if (cols.has('updated_at')) payload.updated_at = now;
 
