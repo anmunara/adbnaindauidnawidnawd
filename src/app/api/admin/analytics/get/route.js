@@ -6,7 +6,7 @@ import { cacheGet, cacheSet } from '@/lib/memoryCache';
 // Analytics scans ALL orders + transactions + game_types on every call.
 // The admin dashboard auto-refreshes, so cache the computed payload briefly
 // to absorb that polling. Pass ?fresh=1 to bypass.
-const ANALYTICS_TTL_MS = 45 * 1000;
+const ANALYTICS_TTL_MS = 300 * 1000;
 
 function toDate(v) {
     if (!v) return null;
@@ -50,8 +50,8 @@ export async function GET(req) {
         startDate.setHours(0, 0, 0, 0);
 
         const [ordersSnap, transactionsSnap, typesSnap, codesAvailableSnap, codesUsedSnap, usersCountSnap] = await Promise.all([
-            adminDb.collection('orders').get(),
-            adminDb.collection('transactions').get(),
+            adminDb.collection('orders').where('createdAt', '>=', startDate).get(),
+            adminDb.collection('transactions').where('createdAt', '>=', startDate).get(),
             adminDb.collection('game_types').get(),
             // Code inventory is only ever COUNTED, never read field-by-field —
             // use aggregation (~1 read per 1000 docs) instead of full scans.

@@ -54,10 +54,6 @@ export default function TypesPage() {
             if (json.success) {
                 setTypes(json.data || []);
             }
-            // Also load codes for stock counts
-            const codesRes = await fetch('/api/admin/analytics/get?days=1', { cache: 'no-store' });
-            const codesJson = await codesRes.json();
-            // Stock per type comes from products.get response already
         } catch (err) {
             toast.error('Gagal memuat data');
             console.error(err);

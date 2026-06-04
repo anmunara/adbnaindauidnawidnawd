@@ -62,6 +62,7 @@ export default function OrderPage({ params }) {
     useEffect(() => {
         let interval = null;
         const fetchOrder = async () => {
+            if (document.hidden) return; // Skip if tab not visible
             try {
                 const res = await fetch(`/api/transaction/check?orderId=${orderId}`);
                 const data = await res.json();
@@ -80,7 +81,9 @@ export default function OrderPage({ params }) {
             }
         };
         fetchOrder();
-        interval = setInterval(fetchOrder, 10000);
+        interval = setInterval(() => {
+            if (!document.hidden) fetchOrder();
+        }, 30000);
         return () => {
             if (interval) clearInterval(interval);
         };

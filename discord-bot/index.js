@@ -418,12 +418,12 @@ if (!process.env.DISCORD_TOKEN) {
 
 // ---------------------------------------------
 // Delivery Poller (replaces broken onSnapshot)
-// Polls web API every 15 seconds for paid orders.
-// Kept fast so paid orders are delivered promptly,
+// Polls web API every 60 seconds for paid orders.
+// Adequate for small stores; cuts Firestore reads by 75% vs 15s,
 // but backs off if the web API is repeatedly failing.
 // ---------------------------------------------
-const DELIVERY_POLL_BASE_MS = 15000;
-const DELIVERY_POLL_MAX_MS = 2 * 60000; // cap backoff at 2 minutes
+const DELIVERY_POLL_BASE_MS = 60000;
+const DELIVERY_POLL_MAX_MS = 5 * 60000; // cap backoff at 5 minutes
 let deliveryPollTimer = null;
 let deliveryPollFailures = 0;
 
@@ -476,8 +476,8 @@ async function pollPendingDeliveries() {
 
                     console.log(`[Delivery] Marked ${order.docId} as delivered`);
 
-                    // Broadcast stock update
-                    await pollStockFromWeb();
+                    // Stock will refresh on next regular poll cycle (every 60s)
+                    console.log(`[Delivery] Stock refresh deferred to next poll cycle`);
                 }
             } catch (err) {
                 console.error(`[Delivery] Failed for ${order.userId}:`, err.message);
@@ -510,6 +510,6 @@ function scheduleDeliveryPoll() {
 client.once(Events.ClientReady, () => {
     setTimeout(() => {
         scheduleDeliveryPoll();
-        console.log('[Bot] Delivery polling started (every 15s, with backoff)');
+        console.log('[Bot] Delivery polling started (every 60s, with backoff)');
     }, 5000);
 });

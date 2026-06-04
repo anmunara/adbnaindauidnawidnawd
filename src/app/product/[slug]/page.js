@@ -71,6 +71,7 @@ export default function ProductPage() {
 
   useEffect(() => {
     const fetchProducts = async () => {
+      if (document.hidden) return; // Skip if tab not visible
       try {
         const res = await fetch('/api/products/get', { cache: 'no-store' });
         const data = await res.json();
@@ -88,7 +89,9 @@ export default function ProductPage() {
       }
     };
     fetchProducts();
-    const interval = setInterval(fetchProducts, 60000);
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchProducts();
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
