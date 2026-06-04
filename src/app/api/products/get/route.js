@@ -8,7 +8,7 @@ const CACHE_KEY = 'products:get';
 // Long-lived "last known good" snapshot, never auto-expires. Served on Firestore
 // errors (e.g. RESOURCE_EXHAUSTED quota) so the store doesn't falsely show "tutup".
 const LKG_KEY = 'products:get:lastGood';
-const CACHE_TTL_MS = 60_000; // 60s — cuts Firestore reads; stock is also refreshed right after each delivery
+const CACHE_TTL_MS = 300_000; // 300s — 5 min, cuts Firestore reads heavily; stock is also refreshed right after each delivery
 
 export async function GET(req) {
     try {

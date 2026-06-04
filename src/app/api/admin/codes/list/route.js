@@ -6,7 +6,7 @@ import { cacheGet, cacheSet } from '@/lib/memoryCache';
 // redeem_codes can be a large collection. The admin codes table reads real
 // document data, so keep the docs but cache the result briefly to absorb
 // repeated views/polling. Pass ?fresh=1 to bypass.
-const CODES_LIST_TTL_MS = 20 * 1000;
+const CODES_LIST_TTL_MS = 300 * 1000;
 
 function toIso(v) {
     if (!v) return null;
@@ -37,7 +37,10 @@ export async function GET(req) {
         }
 
         let query = adminDb.collection('redeem_codes');
-        if (typeId) query = query.where('typeId', '==', typeId);
+        if (typeId) {
+            query = query.where('typeId', '==', typeId);
+        }
+        query = query.limit(1000);
 
         const snap = await query.get();
         const codes = snap.docs.map((d) => {

@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+// No direct Firestore SDK — reads go through API routes with server caching.
 import Link from 'next/link';
 import { User, Mail, Phone, Lock, Save, ArrowLeft, UserCog, Shield, KeyRound, Eye, EyeOff } from 'lucide-react';
 import Navbar from '@/components/Navbar';
@@ -37,10 +36,10 @@ export default function ProfilePage() {
 
             const fetchUserData = async () => {
                 try {
-                    const userRef = doc(db, 'users', session.user.id);
-                    const userSnap = await getDoc(userRef);
-                    if (userSnap.exists()) {
-                        setFormData(prev => ({ ...prev, whatsapp: userSnap.data().whatsapp || '' }));
+                    const res = await fetch('/api/profile/get', { cache: 'no-store' });
+                    const data = await res.json();
+                    if (data.success && data.whatsapp) {
+                        setFormData(prev => ({ ...prev, whatsapp: data.whatsapp }));
                     }
                 } catch (error) {}
             };
@@ -73,7 +72,8 @@ export default function ProfilePage() {
             const data = await res.json();
             if (data.success) {
                 toast.success('Profil berhasil diperbarui!');
-                setTimeout(() => window.location.reload(), 1000);
+                // Update local state instead of page reload — saves 1 Firestore read.
+                setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
             } else {
                 toast.error(data.message || 'Gagal memperbarui profil');
             }
