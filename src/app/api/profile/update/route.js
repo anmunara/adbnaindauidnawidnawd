@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { updateUser as updateUserAuth } from '@/lib/auth';
+import { db } from '@/lib/db';
 import { assertSameOrigin } from '@/lib/security';
 
 // Rate limiting
@@ -112,14 +113,13 @@ export async function POST(req) {
 
         // Validate each field if provided
         const updateData = {};
-        const firestoreData = {};
 
         if (name !== undefined) {
             const nameValidation = validateName(name);
             if (!nameValidation.valid) {
                 return NextResponse.json({ success: false, message: nameValidation.error }, { status: 400 });
             }
-            updateData.displayName = nameValidation.value;
+            updateData.name = nameValidation.value;
         }
 
         if (email !== undefined) {
@@ -127,6 +127,17 @@ export async function POST(req) {
             if (!emailValidation.valid) {
                 return NextResponse.json({ success: false, message: emailValidation.error }, { status: 400 });
             }
+
+            // Check if email is already in use by another user
+            const existingUserSnap = await db.collection('users')
+                .where('email', '==', emailValidation.value)
+                .limit(1)
+                .get();
+
+            if (!existingUserSnap.empty && existingUserSnap.docs[0].id !== uid) {
+                return NextResponse.json({ success: false, message: 'Email already in use' }, { status: 409 });
+            }
+
             updateData.email = emailValidation.value;
         }
 
@@ -135,7 +146,7 @@ export async function POST(req) {
             if (!waValidation.valid) {
                 return NextResponse.json({ success: false, message: waValidation.error }, { status: 400 });
             }
-            firestoreData.whatsapp = waValidation.value;
+            updateData.whatsapp = waValidation.value;
         }
 
         if (password !== undefined) {
@@ -147,7 +158,7 @@ export async function POST(req) {
         }
 
         // Check if there's anything to update
-        if (Object.keys(updateData).length === 0 && Object.keys(firestoreData).length === 0) {
+        if (Object.keys(updateData).length === 0) {
             return NextResponse.json(
                 { success: false, message: 'No valid fields to update' },
                 { status: 400 }
@@ -162,26 +173,14 @@ export async function POST(req) {
             ('email' in updateData && updateData.email !== session.user.email) ||
             'password' in updateData;
 
-        // Update user in Firebase Auth
-        if (Object.keys(updateData).length > 0) {
-            await adminAuth.updateUser(uid, updateData);
-            // Revoke existing Firebase refresh tokens; combined with frontend signOut
-            // this prevents the old session from continuing to act as the old identity.
-            if (sessionInvalidated) {
-                try {
-                    await adminAuth.revokeRefreshTokens(uid);
-                } catch (e) {
-                    console.error('[Profile Update] revokeRefreshTokens failed:', e);
-                }
+        // Update user in SQLite using the auth helper (handles password hashing)
+        try {
+            await updateUserAuth(uid, updateData);
+        } catch (error) {
+            if (error.message.includes('Email already')) {
+                return NextResponse.json({ success: false, message: 'Email already in use' }, { status: 409 });
             }
-        }
-
-        // Update Firestore
-        if (adminDb && Object.keys(firestoreData).length > 0) {
-            await adminDb.collection('users').doc(uid).set({
-                ...firestoreData,
-                updatedAt: new Date().toISOString()
-            }, { merge: true });
+            throw error;
         }
 
         return NextResponse.json({
@@ -192,20 +191,6 @@ export async function POST(req) {
 
     } catch (error) {
         console.error('Profile update error:', error);
-
-        if (error.code === 'auth/email-already-exists') {
-            return NextResponse.json({ success: false, message: 'Email already in use' }, { status: 409 });
-        }
-        if (error.code === 'auth/invalid-email') {
-            return NextResponse.json({ success: false, message: 'Invalid email format' }, { status: 400 });
-        }
-        if (error.code === 'auth/weak-password') {
-            return NextResponse.json({ success: false, message: 'Password is too weak' }, { status: 400 });
-        }
-        if (error.code === 'auth/user-not-found') {
-            return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
-        }
-
         return NextResponse.json({ success: false, message: 'Failed to update profile' }, { status: 500 });
     }
 }

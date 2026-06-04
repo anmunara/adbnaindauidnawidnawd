@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin, maskCode } from '@/lib/security';
 
@@ -23,37 +23,38 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid source' }, { status: 400 });
         }
 
-        const ref = adminDb.collection(source).doc(orderId);
+        const ref = db.collection(source).doc(orderId);
         const snap = await ref.get();
         if (!snap.exists) {
             return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
         }
         const order = snap.data();
-        if (!order.itemId) {
+        const itemId = order.item_id || order.type_id;
+        if (!itemId) {
             return NextResponse.json({ success: false, message: 'Order missing itemId' }, { status: 400 });
         }
 
         // Atomic allocation via transaction (race-safe like the duitku callback)
         let allocatedCode = null;
         try {
-            allocatedCode = await adminDb.runTransaction(async (tx) => {
-                const candidateSnap = await adminDb.collection('redeem_codes')
-                    .where('typeId', '==', order.itemId)
-                    .where('isUsed', '==', false)
+            allocatedCode = await db.runTransaction(async (tx) => {
+                const candidateSnap = await db.collection('redeem_codes')
+                    .where('type_id', '==', itemId)
+                    .where('is_used', '==', false)
                     .limit(5)
                     .get();
 
                 for (const cand of candidateSnap.docs) {
                     const fresh = await tx.get(cand.ref);
-                    if (fresh.exists && fresh.data().isUsed === false) {
-                        const now = new Date();
+                    if (fresh.exists && fresh.data().is_used === false) {
+                        const now = new Date().toISOString();
                         tx.update(cand.ref, {
-                            isUsed: true,
-                            soldTo: order.userId || 'unknown',
-                            transactionId: orderId,
-                            note: `Manual resend by admin | Order: ${orderId} | Waktu: ${now.toISOString()}`,
-                            soldAt: now,
-                            updatedAt: now,
+                            is_used: true,
+                            sold_to: order.user_id || 'unknown',
+                            transaction_id: orderId,
+                            note: `Manual resend by admin | Order: ${orderId} | Waktu: ${now}`,
+                            sold_at: now,
+                            updated_at: now,
                         });
                         return fresh.data().code;
                     }
@@ -71,12 +72,12 @@ export async function POST(req) {
         // Preserve original paidAt — only set if order was already paid.
         // Don't fabricate paidAt during admin resend (misleading audit trail).
         const orderUpdates = {
-            redeemCode: allocatedCode,
+            redeem_code: allocatedCode,
             status: 'SUCCESS',
-            updatedAt: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
         };
-        if (!order.paidAt) {
-            orderUpdates.resentAt = new Date().toISOString();
+        if (!order.paid_at) {
+            orderUpdates.resent_at = new Date().toISOString();
         }
         await ref.update(orderUpdates);
 

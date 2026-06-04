@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin } from '@/lib/security';
 
@@ -46,12 +46,12 @@ export async function POST(req) {
 
         const cat = typeof category === 'string' && VALID_CATEGORIES.includes(category) ? category : 'redfinger';
 
-        const docRef = await adminDb.collection('game_types').add({
+        const docRef = await db.collection('game_types').add({
             name: name.trim(),
-            sellingPrice: sp,
-            capitalPrice: cp,
+            selling_price: sp,
+            capital_price: cp,
             category: cat,
-            createdAt: new Date(),
+            created_at: new Date().toISOString(),
         });
 
         return NextResponse.json({

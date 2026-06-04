@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin, isValidDocId } from '@/lib/security';
 
@@ -27,15 +27,15 @@ export async function POST(req) {
         let skippedWithCodes = 0;
         for (const typeId of typeIds) {
             if (!isValidDocId(typeId)) continue;
-            const codesSnap = await adminDb.collection('redeem_codes')
-                .where('typeId', '==', typeId)
+            const codesSnap = await db.collection('redeem_codes')
+                .where('type_id', '==', typeId)
                 .limit(1)
                 .get();
             if (!codesSnap.empty) {
                 skippedWithCodes += 1;
                 continue;
             }
-            await adminDb.collection('game_types').doc(typeId).delete();
+            await db.collection('game_types').doc(typeId).delete();
             deleted += 1;
         }
 

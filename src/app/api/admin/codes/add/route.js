@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin } from '@/lib/security';
 
@@ -37,12 +37,11 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid note' }, { status: 400 });
         }
 
-        const typeDoc = await adminDb.collection('game_types').doc(typeId).get();
+        const typeDoc = await db.collection('game_types').doc(typeId).get();
         if (!typeDoc.exists) {
             return NextResponse.json({ success: false, message: 'Type not found' }, { status: 404 });
         }
 
-        const batch = adminDb.batch();
         const addedCodes = [];
 
         for (const code of codes) {
@@ -50,13 +49,13 @@ export async function POST(req) {
             const trimmed = code.trim();
             if (!trimmed || trimmed.length > 200) continue;
 
-            const codeRef = adminDb.collection('redeem_codes').doc();
-            batch.set(codeRef, {
+            const codeRef = db.collection('redeem_codes').doc();
+            await codeRef.set({
                 code: trimmed,
-                typeId,
+                type_id: typeId,
                 note: (note || '').slice(0, 200),
-                isUsed: false,
-                createdAt: new Date(),
+                is_used: false,
+                created_at: new Date().toISOString(),
             });
             addedCodes.push(trimmed);
         }
@@ -64,8 +63,6 @@ export async function POST(req) {
         if (addedCodes.length === 0) {
             return NextResponse.json({ success: false, message: 'No valid codes to add' }, { status: 400 });
         }
-
-        await batch.commit();
 
         return NextResponse.json({
             success: true,

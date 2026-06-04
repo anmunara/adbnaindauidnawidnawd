@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin, isValidDocId } from '@/lib/security';
 
@@ -47,7 +47,7 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid capitalPrice' }, { status: 400 });
         }
 
-        const ref = adminDb.collection('game_types').doc(typeId);
+        const ref = db.collection('game_types').doc(typeId);
         const typeDoc = await ref.get();
         if (!typeDoc.exists) {
             return NextResponse.json({ success: false, message: 'Type not found' }, { status: 404 });
@@ -55,9 +55,9 @@ export async function POST(req) {
 
         const updates = {
             name: name.trim(),
-            sellingPrice: sp,
-            capitalPrice: cp,
-            updatedAt: new Date(),
+            selling_price: sp,
+            capital_price: cp,
+            updated_at: new Date().toISOString(),
         };
         if (typeof category === 'string' && VALID_CATEGORIES.includes(category)) {
             updates.category = category;

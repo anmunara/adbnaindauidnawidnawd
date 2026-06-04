@@ -1,17 +1,10 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
-
-function assertLocalhost(req) {
-    const host = req.headers.get('host') || '';
-    if (!host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
-        return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
-    }
-    return null;
-}
+import { db } from '@/lib/db';
+import { assertBotSecret } from '@/lib/security';
 
 export async function GET(req) {
-    const localErr = assertLocalhost(req);
-    if (localErr) return localErr;
+    const authErr = assertBotSecret(req);
+    if (authErr) return authErr;
 
     try {
         const { searchParams } = new URL(req.url);
@@ -21,10 +14,10 @@ export async function GET(req) {
             return NextResponse.json({ success: false, message: 'orderId required' }, { status: 400 });
         }
 
-        // Check transactions collection (Discord orders)
-        let doc = await adminDb.collection('transactions').doc(orderId).get();
+        // Check transactions collection (Discord orders) first, then orders
+        let doc = await db.collection('transactions').doc(orderId).get();
         if (!doc.exists) {
-            doc = await adminDb.collection('orders').doc(orderId).get();
+            doc = await db.collection('orders').doc(orderId).get();
         }
 
         if (!doc.exists) {
@@ -36,16 +29,16 @@ export async function GET(req) {
         return NextResponse.json({
             success: true,
             order: {
-                orderId: data.merchantOrderId || data.orderId,
-                itemName: data.itemName,
+                orderId: data.order_id,
+                itemName: data.item_name,
                 price: data.price || data.amount || 0,
                 status: data.status,
                 delivered: data.delivered || false,
-                redeemCode: data.redeemCode || null,
+                redeemCode: data.redeem_code || null,
             },
         });
     } catch (error) {
         console.error('[Bot Order Status] Error:', error);
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+        return NextResponse.json({ success: false, message: 'Failed to load order status' }, { status: 500 });
     }
 }

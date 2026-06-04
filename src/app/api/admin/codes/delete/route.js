@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin, isValidDocId } from '@/lib/security';
 
@@ -26,7 +26,7 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid code ID' }, { status: 400 });
         }
 
-        const codeRef = adminDb.collection('redeem_codes').doc(codeId);
+        const codeRef = db.collection('redeem_codes').doc(codeId);
         const codeDoc = await codeRef.get();
         if (!codeDoc.exists) {
             return NextResponse.json({ success: false, message: 'Code not found' }, { status: 404 });

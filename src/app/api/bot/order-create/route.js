@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
+import { assertBotSecret } from '@/lib/security';
 import crypto from 'crypto';
 
-// Bot-internal endpoint — only accessible from localhost
-function assertLocalhost(req) {
-    const host = req.headers.get('host') || '';
-    if (!host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
-        return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
-    }
-    return null;
-}
-
 export async function POST(req) {
-    const localErr = assertLocalhost(req);
-    if (localErr) return localErr;
+    const authErr = assertBotSecret(req);
+    if (authErr) return authErr;
 
     try {
         const body = await req.json();
@@ -24,16 +16,16 @@ export async function POST(req) {
         }
 
         // 1. Fetch product details
-        const productDoc = await adminDb.collection('game_types').doc(itemId).get();
+        const productDoc = await db.collection('game_types').doc(itemId).get();
         if (!productDoc.exists) {
             return NextResponse.json({ success: false, message: 'Product not found' }, { status: 404 });
         }
         const productData = productDoc.data();
 
         // 2. Check stock
-        const stockCheck = await adminDb.collection('redeem_codes')
-            .where('typeId', '==', itemId)
-            .where('isUsed', '==', false)
+        const stockCheck = await db.collection('redeem_codes')
+            .where('type_id', '==', itemId)
+            .where('is_used', '==', false)
             .limit(1)
             .get();
 
@@ -41,23 +33,26 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Out of stock' }, { status: 400 });
         }
 
-        // 3. Calculate price
-        const price = productData.sellingPrice;
+        // 3. Calculate price (server-side from product — never trust client)
+        const price = Math.floor(Number(productData.selling_price) || 0);
+        // Sanity guard: refuse to invoice an unconfigured / corrupt product
+        // (mirrors transaction/create — prevents Rp0 or absurd invoices).
+        if (price < 1000 || price > 10_000_000) {
+            return NextResponse.json({ success: false, message: 'Produk belum dikonfigurasi' }, { status: 400 });
+        }
         const paymentAmount = Math.ceil(price * 1.007); // +0.7% fee
         const merchantOrderId = `CP-${Date.now()}-${String(userId).slice(-4)}`;
 
-        // 4. Create transaction in Firestore
-        await adminDb.collection('transactions').doc(merchantOrderId).set({
-            userId,
+        // 4. Create transaction in SQLite
+        await db.collection('transactions').doc(merchantOrderId).set({
+            user_id: userId,
             username: username || 'Discord User',
-            itemId,
-            itemName: productData.name,
+            item_id: itemId,
+            item_name: productData.name,
             price: paymentAmount,
-            merchantOrderId,
             status: 'PENDING',
-            createdAt: new Date(),
-            delivered: null,
-            paymentUrl: '',
+            delivered: false,
+            payment_url: '',
         });
 
         // 5. Generate Duitku payment
@@ -104,12 +99,12 @@ export async function POST(req) {
         }
 
         // 6. Update transaction with payment data
-        await adminDb.collection('transactions').doc(merchantOrderId).update({
-            qrString: duitkuData.qrString || '',
-            vaNumber: duitkuData.vaNumber || '',
+        await db.collection('transactions').doc(merchantOrderId).update({
+            qr_string: duitkuData.qrString || '',
+            va_number: duitkuData.vaNumber || '',
             reference: duitkuData.reference || '',
-            expiryTime: duitkuData.expiryTime || '',
-            paymentMethod: 'SQ',
+            expiry_time: duitkuData.expiryTime || '',
+            payment_method: 'SQ',
         });
 
         return NextResponse.json({

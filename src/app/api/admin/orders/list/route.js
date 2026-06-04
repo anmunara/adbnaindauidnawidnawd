@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { cacheGet, cacheSet } from '@/lib/memoryCache';
 
@@ -42,9 +42,9 @@ export async function GET(req) {
         }
 
         const [ordersSnap, transactionsSnap, typesSnap] = await Promise.all([
-            adminDb.collection('orders').orderBy('createdAt', 'desc').limit(limit).get(),
-            adminDb.collection('transactions').orderBy('createdAt', 'desc').limit(limit).get(),
-            adminDb.collection('game_types').get(),
+            db.collection('orders').orderBy('created_at', 'desc').limit(limit).get(),
+            db.collection('transactions').orderBy('created_at', 'desc').limit(limit).get(),
+            db.collection('game_types').get(),
         ]);
 
         const typeMap = {};
@@ -52,13 +52,13 @@ export async function GET(req) {
             const data = d.data();
             typeMap[d.id] = {
                 name: data.name || 'Unknown',
-                sellingPrice: Number(data.sellingPrice) || 0,
+                sellingPrice: Number(data.selling_price) || 0,
             };
         });
 
         const normalize = (d, source) => {
             const data = d.data();
-            const itemId = data.itemId || data.typeId || null;
+            const itemId = data.item_id || data.type_id || null;
             let price = Number(data.price) || Number(data.amount) || 0;
             if (!price && itemId && typeMap[itemId]) {
                 price = typeMap[itemId].sellingPrice;
@@ -66,19 +66,19 @@ export async function GET(req) {
             return {
                 id: d.id,
                 source,
-                orderId: data.orderId || d.id,
-                userId: data.userId || data.username || null,
-                userEmail: data.userEmail || null,
+                orderId: data.order_id || d.id,
+                userId: data.user_id || data.username || null,
+                userEmail: data.user_email || null,
                 itemId,
-                itemName: data.itemName || data.productName || (itemId && typeMap[itemId]?.name) || 'Unknown',
+                itemName: data.item_name || data.product_name || (itemId && typeMap[itemId]?.name) || 'Unknown',
                 price,
-                paymentMethod: data.paymentMethod || null,
+                paymentMethod: data.payment_method || null,
                 status: (data.status || 'PENDING').toUpperCase(),
-                redeemCode: data.redeemCode || data.code || null,
-                reference: data.reference || data.duitkuReference || null,
-                createdAt: toIso(data.createdAt),
-                paidAt: toIso(data.paidAt),
-                updatedAt: toIso(data.updatedAt),
+                redeemCode: data.redeem_code || data.code || null,
+                reference: data.reference || data.duitku_reference || null,
+                createdAt: toIso(data.created_at),
+                paidAt: toIso(data.paid_at),
+                updatedAt: toIso(data.updated_at),
             };
         };
 

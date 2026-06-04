@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin, isValidDocId } from '@/lib/security';
 
@@ -23,14 +23,12 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Max 500 per batch' }, { status: 400 });
         }
 
-        const batch = adminDb.batch();
         let queued = 0;
         for (const id of codeIds) {
             if (!isValidDocId(id)) continue;
-            batch.delete(adminDb.collection('redeem_codes').doc(id));
+            await db.collection('redeem_codes').doc(id).delete();
             queued += 1;
         }
-        await batch.commit();
 
         return NextResponse.json({ success: true, deleted: queued });
     } catch (error) {

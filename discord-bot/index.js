@@ -129,6 +129,7 @@ async function broadcastStockUpdate() {
 
 // Fetch products from local web API (bypasses Firestore connection issues)
 const WEB_API_URL = 'http://localhost:3000';
+const BOT_API_SECRET = process.env.BOT_API_SECRET || '';
 
 // Returns the products array on success (may be []), or null when the request
 // FAILED (network error or {success:false}). Callers must treat null as "keep
@@ -254,7 +255,9 @@ client.on(Events.InteractionCreate, async interaction => {
             const orderId = customId.replace('cek_status_', '');
 
             try {
-                const res = await fetch(`${WEB_API_URL}/api/bot/order-status?orderId=${encodeURIComponent(orderId)}`);
+                const res = await fetch(`${WEB_API_URL}/api/bot/order-status?orderId=${encodeURIComponent(orderId)}`, {
+                    headers: { 'x-bot-secret': BOT_API_SECRET },
+                });
                 const json = await res.json();
 
                 if (!json.success) {
@@ -312,7 +315,7 @@ client.on(Events.InteractionCreate, async interaction => {
                     // 1. Create order via web API (handles product check, stock, Duitku, Firestore)
                     const orderRes = await fetch(`${WEB_API_URL}/api/bot/order-create`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'x-bot-secret': BOT_API_SECRET },
                         body: JSON.stringify({
                             userId: interaction.user.id,
                             username: interaction.user.username,
@@ -429,7 +432,9 @@ let deliveryPollFailures = 0;
 
 async function pollPendingDeliveries() {
     try {
-        const res = await fetch(`${WEB_API_URL}/api/bot/pending-deliveries`);
+        const res = await fetch(`${WEB_API_URL}/api/bot/pending-deliveries`, {
+            headers: { 'x-bot-secret': BOT_API_SECRET },
+        });
         const json = await res.json();
         deliveryPollFailures = 0;
         if (!json.success || !json.pending.length) return;

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { cacheGet, cacheSet } from '@/lib/memoryCache';
 
@@ -36,9 +36,9 @@ export async function GET(req) {
             }
         }
 
-        let query = adminDb.collection('redeem_codes');
+        let query = db.collection('redeem_codes');
         if (typeId) {
-            query = query.where('typeId', '==', typeId);
+            query = query.where('type_id', '==', typeId);
         }
         query = query.limit(1000);
 
@@ -48,14 +48,14 @@ export async function GET(req) {
             return {
                 id: d.id,
                 code: data.code,
-                typeId: data.typeId,
+                typeId: data.type_id,
                 note: data.note || '',
-                isUsed: !!data.isUsed,
-                soldTo: data.soldTo || null,
-                transactionId: data.transactionId || null,
-                createdAt: toIso(data.createdAt),
-                soldAt: toIso(data.soldAt),
-                updatedAt: toIso(data.updatedAt),
+                isUsed: !!data.is_used,
+                soldTo: data.sold_to || null,
+                transactionId: data.transaction_id || null,
+                createdAt: toIso(data.created_at),
+                soldAt: toIso(data.sold_at),
+                updatedAt: toIso(data.updated_at),
             };
         });
 

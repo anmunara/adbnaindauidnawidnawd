@@ -28,7 +28,7 @@ export async function middleware(req) {
         style-src 'self' 'unsafe-inline';
         img-src 'self' blob: data: https://*.cloudhost.id https://*.contabostorage.com https://abahcode.com https://upload.wikimedia.org https://api.qrserver.com https://placehold.co https://images.unsplash.com https://www.googletagmanager.com;
         font-src 'self';
-        connect-src 'self' https://*.firebaseio.com https://*.firebaseapp.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googletagmanager.com https://www.google-analytics.com;
+        connect-src 'self' https://www.googletagmanager.com https://www.google-analytics.com;
         object-src 'none';
         base-uri 'self';
         form-action 'self';

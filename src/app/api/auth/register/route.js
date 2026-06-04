@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { createUser } from '@/lib/auth';
 import { assertSameOrigin } from '@/lib/security';
 
 // Rate limiting: track IPs
@@ -74,6 +74,19 @@ export async function POST(req) {
             );
         }
 
+        // Block self-registration of admin emails. Admin is granted by
+        // ADMIN_EMAILS; without this guard anyone could register an as-yet
+        // unregistered admin address and gain admin access. Admin accounts
+        // must be provisioned out-of-band (scripts/seed.js).
+        const adminEmails = (process.env.ADMIN_EMAILS || '')
+            .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+        if (adminEmails.includes(emailClean)) {
+            return NextResponse.json(
+                { success: false, message: 'Email tidak dapat digunakan.' },
+                { status: 403 }
+            );
+        }
+
         // Validate password strength — must match profile/update rules
         if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
             return NextResponse.json(
@@ -117,31 +130,14 @@ export async function POST(req) {
             }
         }
 
-        // Check Firebase Admin is initialized
-        if (!adminAuth) {
-            return NextResponse.json(
-                { success: false, message: 'Server authentication not configured.' },
-                { status: 500 }
-            );
-        }
-
-        // Create user in Firebase Auth
-        const userRecord = await adminAuth.createUser({
+        // Create user in SQLite database
+        const user = await createUser({
             email: emailClean,
             password: password,
-            displayName: nameClean,
+            name: nameClean,
+            whatsapp: whatsapp ? whatsapp.replace(/\D/g, '') : '',
+            role: 'user'
         });
-
-        // Save additional data to Firestore
-        if (adminDb) {
-            await adminDb.collection('users').doc(userRecord.uid).set({
-                name: nameClean,
-                email: emailClean,
-                whatsapp: whatsapp ? whatsapp.replace(/\D/g, '') : '',
-                role: 'user',
-                createdAt: new Date().toISOString(),
-            });
-        }
 
         return NextResponse.json({
             success: true,
@@ -151,22 +147,22 @@ export async function POST(req) {
     } catch (error) {
         console.error('Registration error:', error);
 
-        // Handle Firebase specific errors
-        if (error.code === 'auth/email-already-exists') {
+        // Handle specific error messages
+        if (error.message === 'Email already registered') {
             return NextResponse.json(
                 { success: false, message: 'Email sudah terdaftar.' },
                 { status: 409 }
             );
         }
-        if (error.code === 'auth/invalid-email') {
+        if (error.message === 'Invalid email format') {
             return NextResponse.json(
                 { success: false, message: 'Format email tidak valid.' },
                 { status: 400 }
             );
         }
-        if (error.code === 'auth/weak-password') {
+        if (error.message && error.message.includes('Password')) {
             return NextResponse.json(
-                { success: false, message: 'Password terlalu lemah.' },
+                { success: false, message: error.message },
                 { status: 400 }
             );
         }

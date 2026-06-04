@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin } from '@/lib/security';
 
@@ -26,31 +26,31 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid source' }, { status: 400 });
         }
 
-        const ref = adminDb.collection(source).doc(orderId);
+        const ref = db.collection(source).doc(orderId);
         const snap = await ref.get();
         if (!snap.exists) {
             return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
         }
 
-        const updates = { updatedAt: new Date().toISOString() };
+        const updates = { updated_at: new Date().toISOString() };
         if (status) {
             const normalized = String(status).toUpperCase();
             if (!ALLOWED_STATUSES.includes(normalized)) {
                 return NextResponse.json({ success: false, message: 'Invalid status' }, { status: 400 });
             }
             updates.status = normalized;
-            if (normalized === 'SUCCESS' && !snap.data().paidAt) {
-                updates.paidAt = new Date().toISOString();
+            if (normalized === 'SUCCESS' && !snap.data().paid_at) {
+                updates.paid_at = new Date().toISOString();
             }
         }
         if (typeof redeemCode === 'string' && redeemCode.length <= 200) {
-            updates.redeemCode = redeemCode;
+            updates.redeem_code = redeemCode;
         }
         if (typeof userId === 'string' && userId.length <= 100) {
-            updates.userId = userId;
+            updates.user_id = userId;
         }
         if (typeof itemName === 'string' && itemName.length <= 100) {
-            updates.itemName = itemName;
+            updates.item_name = itemName;
         }
         if (typeof price === 'number' && price >= 0 && price <= MAX_PRICE) {
             updates.price = Math.floor(price);

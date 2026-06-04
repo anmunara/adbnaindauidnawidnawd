@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 
 const DOC_ID_RE = /^[a-zA-Z0-9_-]{4,40}$/;
 const ORDER_ID_RE = /^TRX-\d{10,16}-[0-9a-zA-Z]{4,16}$/;
@@ -48,12 +49,42 @@ export function assertSameOrigin(req) {
 }
 
 /**
- * Mask a redeem code for logging — keep first 3 + last 2 chars.
+ * Authenticate an internal bot->web request via a shared secret.
+ * The Host header is client-controlled and cannot be trusted, so we require
+ * a constant-time match against BOT_API_SECRET instead. Returns a NextResponse
+ * error if unauthorized, otherwise null.
+ */
+export function assertBotSecret(req) {
+    const expected = process.env.BOT_API_SECRET || '';
+    const provided = req.headers.get('x-bot-secret') || '';
+
+    // Reject if not configured — fail closed rather than open.
+    if (!expected) {
+        return NextResponse.json(
+            { success: false, message: 'Forbidden' },
+            { status: 403 }
+        );
+    }
+
+    const a = Buffer.from(expected);
+    const b = Buffer.from(provided);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+        return NextResponse.json(
+            { success: false, message: 'Forbidden' },
+            { status: 403 }
+        );
+    }
+    return null;
+}
+
+/**
+ * Mask a redeem code for logging — keep only first 2 chars, hide the rest.
+ * Codes carry monetary value, so reveal as little as possible.
  */
 export function maskCode(code) {
     if (!code || typeof code !== 'string') return '';
-    if (code.length <= 6) return '***';
-    return `${code.slice(0, 3)}***${code.slice(-2)}`;
+    if (code.length <= 4) return '***';
+    return `${code.slice(0, 2)}***`;
 }
 
 /**

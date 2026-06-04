@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin } from '@/lib/security';
 
@@ -29,7 +29,6 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Max 200 per batch' }, { status: 400 });
         }
 
-        const batch = adminDb.batch();
         const now = new Date().toISOString();
         let updated = 0;
 
@@ -37,14 +36,13 @@ export async function POST(req) {
             const { id, source } = entry || {};
             if (typeof id !== 'string' || id.length > 64) continue;
             if (!['orders', 'transactions'].includes(source)) continue;
-            const ref = adminDb.collection(source).doc(id);
-            const updates = { status: normalized, updatedAt: now };
-            if (normalized === 'SUCCESS') updates.paidAt = now;
-            batch.update(ref, updates);
+            const ref = db.collection(source).doc(id);
+            const updates = { status: normalized, updated_at: now };
+            if (normalized === 'SUCCESS') updates.paid_at = now;
+            await ref.update(updates);
             updated += 1;
         }
 
-        await batch.commit();
         return NextResponse.json({ success: true, updated });
     } catch (error) {
         console.error('[Bulk Status] Error:', error);

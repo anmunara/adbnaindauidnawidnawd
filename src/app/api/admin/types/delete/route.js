@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin, isValidDocId } from '@/lib/security';
 
@@ -26,15 +26,15 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Invalid type ID' }, { status: 400 });
         }
 
-        const ref = adminDb.collection('game_types').doc(typeId);
+        const ref = db.collection('game_types').doc(typeId);
         const typeDoc = await ref.get();
         if (!typeDoc.exists) {
             return NextResponse.json({ success: false, message: 'Type not found' }, { status: 404 });
         }
 
-        const codesSnapshot = await adminDb.collection('redeem_codes')
-            .where('typeId', '==', typeId)
-            .where('isUsed', '==', false)
+        const codesSnapshot = await db.collection('redeem_codes')
+            .where('type_id', '==', typeId)
+            .where('is_used', '==', false)
             .limit(1)
             .get();
 

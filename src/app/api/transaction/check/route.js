@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 
 // Rate limiting
 const rateLimitMap = new Map();
@@ -65,11 +65,11 @@ export async function GET(request) {
         }
 
         // Check both collections (website 'orders' + Discord 'transactions')
-        let doc = await adminDb.collection('orders').doc(orderId).get();
+        let doc = await db.collection('orders').doc(orderId).get();
         let collectionName = 'orders';
 
         if (!doc.exists) {
-            doc = await adminDb.collection('transactions').doc(orderId).get();
+            doc = await db.collection('transactions').doc(orderId).get();
             collectionName = 'transactions';
         }
 
@@ -84,9 +84,9 @@ export async function GET(request) {
 
         // Authorization check - verify order belongs to current user
         // Allow if user is the owner OR if user is admin
-        const isOwner = data.userId === session.user.id || 
-                       data.userId === session.user.email;
-        
+        const isOwner = data.user_id === session.user.id ||
+                       data.user_id === session.user.email;
+
         // Check admin status
         const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || [];
         const isAdmin = adminEmails.includes(session.user.email);
@@ -100,23 +100,23 @@ export async function GET(request) {
 
         // Sanitize response - only return necessary fields
         const sanitizedOrder = {
-            orderId: data.orderId || data.merchantOrderId,
-            itemName: data.itemName,
+            orderId: data.order_id || data.merchant_order_id,
+            itemName: data.item_name,
             price: data.price || data.amount,
             status: data.status,
-            paymentMethod: data.paymentMethod,
-            qrString: data.qrString || null,
-            vaNumber: data.vaNumber || null,
-            paymentUrl: data.paymentUrl || null,
-            expiryTime: data.expiryTime || null,
-            createdAt: data.createdAt,
-            updatedAt: data.updatedAt || null,
-            paidAt: data.paidAt || null,
+            paymentMethod: data.payment_method,
+            qrString: data.qr_string || null,
+            vaNumber: data.va_number || null,
+            paymentUrl: data.payment_url || null,
+            expiryTime: data.expiry_time || null,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at || null,
+            paidAt: data.paid_at || null,
         };
 
         // Only include redeem code if payment is successful
         if (data.status === 'SUCCESS') {
-            sanitizedOrder.redeemCode = data.redeemCode || null;
+            sanitizedOrder.redeemCode = data.redeem_code || null;
         }
 
         return NextResponse.json({

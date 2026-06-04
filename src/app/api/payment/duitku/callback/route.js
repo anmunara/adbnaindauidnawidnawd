@@ -1,24 +1,7 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
-import * as admin from 'firebase-admin';
+import { db } from '@/lib/db';
 import crypto from 'crypto';
 import { maskCode, maskEmail } from '@/lib/security';
-
-if (!admin.apps.length) {
-    try {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-            }),
-        });
-    } catch (error) {
-        console.error('Firebase admin init error:', error);
-    }
-}
-
-const db = adminDb || admin.firestore();
 
 export async function POST(req) {
     try {
@@ -79,40 +62,44 @@ export async function POST(req) {
             if (!Number.isFinite(paidAmount) || !Number.isFinite(orderPrice) || paidAmount < orderPrice) {
                 await orderRef.update({
                     status: 'FAILED',
-                    failureReason: 'amount_mismatch',
-                    updatedAt: new Date().toISOString(),
+                    failure_reason: 'amount_mismatch',
+                    updated_at: new Date().toISOString(),
                 });
                 console.error(`[Callback] Amount mismatch order=${merchantOrderId} paid=${paidAmount} expected=${orderPrice}`);
                 return NextResponse.json({ message: 'Amount mismatch' }, { status: 400 });
             }
 
-            const itemId = orderData.itemId;
+            const itemId = orderData.item_id || orderData.itemId;
             const source = orderSource === 'orders' ? 'Website' : 'Discord';
-            const userName = orderData.username || orderData.userId || 'Unknown';
+            const userName = orderData.username || orderData.user_id || orderData.userId || 'Unknown';
 
-            // Atomic code allocation via Firestore transaction
+            // Atomic code allocation via SQLite transaction
             // Prevents race condition where 2 callbacks pick the same unused code
             let assignedCode = 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
             try {
                 assignedCode = await db.runTransaction(async (tx) => {
+                    // Query for available codes
                     const candidateSnap = await db.collection('redeem_codes')
-                        .where('typeId', '==', itemId)
-                        .where('isUsed', '==', false)
+                        .where('type_id', '==', itemId)
+                        .where('is_used', '==', false)
                         .limit(5)
                         .get();
 
-                    for (const cand of candidateSnap.docs) {
-                        const fresh = await tx.get(cand.ref);
-                        if (fresh.exists && fresh.data().isUsed === false) {
+                    // Try each candidate inside the transaction
+                    for (const candDoc of candidateSnap.docs) {
+                        // Re-read the candidate inside the transaction to ensure it's still available
+                        const fresh = await tx.get(candDoc.ref);
+                        if (fresh.exists && fresh.data().is_used === false) {
                             const saleTimestamp = new Date().toISOString();
                             const note = `Terjual via ${source} | User: ${userName} | Ref: ${reference} | Order: ${merchantOrderId} | Waktu: ${saleTimestamp}`;
-                            tx.update(cand.ref, {
-                                isUsed: true,
-                                soldTo: orderData.userId || 'unknown',
-                                transactionId: merchantOrderId,
+
+                            tx.update(candDoc.ref, {
+                                is_used: true,
+                                sold_to: orderData.user_id || orderData.userId || 'unknown',
+                                transaction_id: merchantOrderId,
                                 note,
-                                soldAt: admin.firestore.FieldValue.serverTimestamp(),
-                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                sold_at: saleTimestamp,
+                                updated_at: saleTimestamp,
                             });
                             return fresh.data().code;
                         }
@@ -123,22 +110,32 @@ export async function POST(req) {
                 console.error('[Callback] Code allocation tx failed:', txErr);
             }
 
+            const stockOk = assignedCode && assignedCode !== 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
+
+            // Customer has paid. Only mark SUCCESS if a real code was actually
+            // allocated; otherwise flag PAID_NO_STOCK so the order is not closed
+            // as fulfilled and an admin can refund / restock + resend.
             await orderRef.update({
-                status: 'SUCCESS',
-                duitkuReference: reference,
-                redeemCode: assignedCode,
-                paidAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: new Date().toISOString(),
+                status: stockOk ? 'SUCCESS' : 'PAID_NO_STOCK',
+                duitku_reference: reference,
+                redeem_code: stockOk ? assignedCode : null,
+                paid_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
             });
 
-            console.log(`[Callback] Order ${merchantOrderId} SUCCESS (${source}) - Code: ${maskCode(assignedCode)} - User: ${maskEmail(orderData.userEmail || '')}`);
+            if (!stockOk) {
+                console.error(`[Callback] PAID BUT NO STOCK order=${merchantOrderId} item=${itemId} — refund/restock needed`);
+                return NextResponse.json({ message: 'Paid, awaiting stock' }, { status: 200 });
+            }
+
+            console.log(`[Callback] Order ${merchantOrderId} SUCCESS (${source}) - Code: ${maskCode(assignedCode)} - User: ${maskEmail(orderData.user_email || orderData.userEmail || '')}`);
             return NextResponse.json({ message: 'Success' }, { status: 200 });
         } else {
             await orderRef.update({
                 status: 'FAILED',
-                resultCode,
-                failedAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: new Date().toISOString(),
+                result_code: resultCode,
+                failed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
             });
 
             console.log(`[Callback] Order ${merchantOrderId} FAILED - resultCode: ${resultCode}`);

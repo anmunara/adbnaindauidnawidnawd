@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { Flex, TextField, Button, Text, Callout, Checkbox, Box } from "@radix-ui/themes";
 import { EnvelopeClosedIcon, LockClosedIcon, InfoCircledIcon } from "@radix-ui/react-icons";
@@ -20,23 +18,15 @@ export default function LoginForm() {
         setLoading(true);
         setError("");
 
-        if (!auth) {
-            setError("Authentication service not configured (missing env vars).");
-            setLoading(false);
-            return;
-        }
-
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const idToken = await userCredential.user.getIdToken();
-
             const result = await signIn("credentials", {
                 redirect: false,
-                idToken,
+                email,
+                password,
             });
 
             if (result.error) {
-                setError(result.error);
+                setError("Invalid email or password");
             } else {
                 router.push('/dashboard');
             }

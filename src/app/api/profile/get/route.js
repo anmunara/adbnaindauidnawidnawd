@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
@@ -10,7 +10,7 @@ export async function GET(req) {
     }
 
     try {
-        const userDoc = await adminDb.collection('users').doc(session.user.id).get();
+        const userDoc = await db.collection('users').doc(session.user.id).get();
         if (!userDoc.exists) {
             return NextResponse.json({ success: false, message: 'User not found' }, { status: 404 });
         }

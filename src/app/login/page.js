@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import Link from 'next/link';
 import { Mail, Lock, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
@@ -24,23 +22,15 @@ export default function Login() {
         setLoading(true);
         setError("");
 
-        if (!auth) {
-            setError("Authentication service not configured.");
-            setLoading(false);
-            return;
-        }
-
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            const idToken = await userCredential.user.getIdToken();
-
             const result = await signIn("credentials", {
                 redirect: false,
-                idToken,
+                email,
+                password,
             });
 
             if (result.error) {
-                setError(result.error);
+                setError("Email atau password salah!");
             } else {
                 router.push('/dashboard');
             }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
-import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { assertSameOrigin } from '@/lib/security';
 import crypto from 'crypto';
 
@@ -31,8 +31,9 @@ function validateUserId(userId) {
     if (!userId) return { valid: false, error: 'User ID is required' };
     if (typeof userId !== 'string') return { valid: false, error: 'User ID must be a string' };
     if (userId.length < 3 || userId.length > 100) return { valid: false, error: 'User ID must be 3-100 characters' };
-    // Allow alphanumeric, email format, and common special chars for usernames
-    if (!/^[a-zA-Z0-9._%+-@]+$/.test(userId)) return { valid: false, error: 'User ID contains invalid characters' };
+    // Allow alphanumeric, email format, and common username chars.
+    // Note: '-' is placed last so it is a literal, not a range.
+    if (!/^[a-zA-Z0-9._%+@-]+$/.test(userId)) return { valid: false, error: 'User ID contains invalid characters' };
     return { valid: true, value: userId.trim() };
 }
 
@@ -115,12 +116,12 @@ export async function POST(request) {
         // CRITICAL: trust server-side product data, never the client-supplied price.
         // Without this, a malicious client can request itemId=<expensive> price=1
         // and the Duitku invoice will be Rp 1, bypassing the actual cost.
-        const typeDoc = await adminDb.collection('game_types').doc(itemIdValidation.value).get();
+        const typeDoc = await db.collection('game_types').doc(itemIdValidation.value).get();
         if (!typeDoc.exists) {
             return NextResponse.json({ success: false, message: 'Produk tidak ditemukan' }, { status: 404 });
         }
         const typeData = typeDoc.data();
-        const trustedPrice = Math.floor(Number(typeData.sellingPrice) || 0);
+        const trustedPrice = Math.floor(Number(typeData.selling_price) || 0);
         if (trustedPrice < 1000 || trustedPrice > 10_000_000) {
             // Sanity guard: refuse to create payment for an unconfigured / corrupt type.
             return NextResponse.json({ success: false, message: 'Produk belum dikonfigurasi' }, { status: 400 });
@@ -128,9 +129,9 @@ export async function POST(request) {
         const trustedItemName = String(typeData.name || 'Cloud Phone').slice(0, 100).replace(/[<>"']/g, '');
 
         // 1. Check Stock BEFORE creating payment
-        const codesSnapshot = await adminDb.collection('redeem_codes')
-            .where('typeId', '==', itemIdValidation.value)
-            .where('isUsed', '==', false)
+        const codesSnapshot = await db.collection('redeem_codes')
+            .where('type_id', '==', itemIdValidation.value)
+            .where('is_used', '==', false)
             .limit(1)
             .get();
 
@@ -232,26 +233,26 @@ export async function POST(request) {
             }, { status: 500 });
         }
 
-        // 5. Save Order to Firestore
+        // 5. Save Order to SQLite
         const orderData = {
-            orderId,
-            userId: userIdValidation.value,
-            userEmail: session.user.email,
-            itemId: itemIdValidation.value,
-            itemName: trustedItemName,
+            order_id: orderId,
+            user_id: userIdValidation.value,
+            user_email: session.user.email,
+            item_id: itemIdValidation.value,
+            item_name: trustedItemName,
             price: paymentAmount,
-            paymentMethod: methodValidation.value,
+            payment_method: methodValidation.value,
             status: 'PENDING',
-            qrString: duitkuData.qrString || null,
-            vaNumber: duitkuData.vaNumber || null,
-            paymentUrl: duitkuData.paymentUrl || null,
+            qr_string: duitkuData.qrString || null,
+            va_number: duitkuData.vaNumber || null,
+            payment_url: duitkuData.paymentUrl || null,
             reference: duitkuData.reference,
-            expiryTime: duitkuData.expiryTime || null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            expiry_time: duitkuData.expiryTime || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         };
 
-        await adminDb.collection('orders').doc(orderId).set(orderData);
+        await db.collection('orders').doc(orderId).set(orderData);
 
         console.log('[Transaction Create] Order saved:', orderId);
 

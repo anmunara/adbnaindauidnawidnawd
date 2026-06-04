@@ -1,53 +1,46 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
-
-function assertLocalhost(req) {
-    const host = req.headers.get('host') || '';
-    if (!host.startsWith('localhost') && !host.startsWith('127.0.0.1')) {
-        return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
-    }
-    return null;
-}
+import { db } from '@/lib/db';
+import { assertBotSecret } from '@/lib/security';
 
 // Returns all successful transactions that haven't been delivered yet
 export async function GET(req) {
-    const localErr = assertLocalhost(req);
-    if (localErr) return localErr;
+    const authErr = assertBotSecret(req);
+    if (authErr) return authErr;
 
     try {
-        const snapshot = await adminDb.collection('transactions')
+        const snapshot = await db.collection('transactions')
             .where('status', '==', 'SUCCESS')
-            .where('delivered', '==', null)
+            .where('delivered', '==', false)
             .limit(20)
             .get();
 
         const pending = [];
-        snapshot.forEach(doc => {
+        snapshot.docs.forEach(doc => {
             const data = doc.data();
             pending.push({
                 docId: doc.id,
-                userId: data.userId,
+                userId: data.user_id,
                 username: data.username,
-                itemId: data.itemId,
-                itemName: data.itemName,
-                merchantOrderId: data.merchantOrderId,
-                redeemCode: data.redeemCode || null,
-                dmMessageId: data.dmMessageId || null,
-                dmChannelId: data.dmChannelId || null,
+                itemId: data.item_id,
+                itemName: data.item_name,
+                merchantOrderId: data.order_id,
+                redeemCode: data.redeem_code || null,
+                dmMessageId: data.dm_message_id || null,
+                dmChannelId: data.dm_channel_id || null,
             });
         });
 
         return NextResponse.json({ success: true, pending });
     } catch (error) {
         console.error('[Bot Pending Deliveries] Error:', error);
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+        return NextResponse.json({ success: false, message: 'Failed to load pending deliveries' }, { status: 500 });
     }
 }
 
 // Mark a transaction as delivered
 export async function POST(req) {
-    const localErr = assertLocalhost(req);
-    if (localErr) return localErr;
+    const authErr = assertBotSecret(req);
+    if (authErr) return authErr;
 
     try {
         const body = await req.json();
@@ -57,14 +50,14 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'docId required' }, { status: 400 });
         }
 
-        await adminDb.collection('transactions').doc(docId).update({
+        await db.collection('transactions').doc(docId).update({
             delivered: true,
-            deliveredAt: new Date(),
+            delivered_at: new Date().toISOString(),
         });
 
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error('[Bot Mark Delivered] Error:', error);
-        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+        return NextResponse.json({ success: false, message: 'Failed to mark delivered' }, { status: 500 });
     }
 }

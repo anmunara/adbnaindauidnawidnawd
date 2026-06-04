@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { cacheGet, cacheSet } from '@/lib/memoryCache';
 
@@ -49,15 +49,15 @@ export async function GET(req) {
         startDate.setDate(startDate.getDate() - (days - 1));
         startDate.setHours(0, 0, 0, 0);
 
-        const [ordersSnap, transactionsSnap, typesSnap, codesAvailableSnap, codesUsedSnap, usersCountSnap] = await Promise.all([
-            adminDb.collection('orders').where('createdAt', '>=', startDate).get(),
-            adminDb.collection('transactions').where('createdAt', '>=', startDate).get(),
-            adminDb.collection('game_types').get(),
-            // Code inventory is only ever COUNTED, never read field-by-field —
-            // use aggregation (~1 read per 1000 docs) instead of full scans.
-            adminDb.collection('redeem_codes').where('isUsed', '==', false).count().get(),
-            adminDb.collection('redeem_codes').where('isUsed', '==', true).count().get(),
-            adminDb.collection('users').count().get().catch(() => ({ data: () => ({ count: 0 }) })),
+        const startIso = startDate.toISOString();
+        const [ordersSnap, transactionsSnap, typesSnap, codesAvailable, codesUsed, usersCount] = await Promise.all([
+            db.collection('orders').where('created_at', '>=', startIso).get(),
+            db.collection('transactions').where('created_at', '>=', startIso).get(),
+            db.collection('game_types').get(),
+            // Code inventory is only ever COUNTED, never read field-by-field.
+            db.collection('redeem_codes').where('is_used', '==', false).count(),
+            db.collection('redeem_codes').where('is_used', '==', true).count(),
+            db.collection('users').count().catch(() => 0),
         ]);
 
         // Build type lookup map: typeId -> { name, sellingPrice }
@@ -66,7 +66,7 @@ export async function GET(req) {
             const data = d.data();
             typeMap[d.id] = {
                 name: data.name || 'Unknown',
-                sellingPrice: Number(data.sellingPrice) || 0,
+                sellingPrice: Number(data.selling_price) || 0,
             };
         });
 
@@ -91,17 +91,17 @@ export async function GET(req) {
         const uniqueCustomers = new Set();
 
         for (const o of allOrders) {
-            const created = toDate(o.paidAt) || toDate(o.createdAt) || toDate(o.updatedAt);
+            const created = toDate(o.paid_at) || toDate(o.created_at) || toDate(o.updated_at);
             const status = (o.status || '').toUpperCase();
 
             // Multi-field price fallback: price (web) → amount (Discord) → game_types lookup
-            const tid = o.itemId || o.typeId || null;
+            const tid = o.item_id || o.type_id || null;
             let price = Number(o.price) || Number(o.amount) || 0;
             if (!price && tid && typeMap[tid]) {
                 price = typeMap[tid].sellingPrice;
             }
 
-            const userKey = o.userId || o.username || o.userEmail;
+            const userKey = o.user_id || o.username || o.user_email;
 
             if (status === 'SUCCESS') {
                 totalRevenue += price;
@@ -109,7 +109,7 @@ export async function GET(req) {
                 if (userKey) uniqueCustomers.add(String(userKey));
 
                 const key = tid || 'unknown';
-                const typeName = (tid && typeMap[tid]?.name) || o.itemName || o.productName || 'Unknown';
+                const typeName = (tid && typeMap[tid]?.name) || o.item_name || o.product_name || 'Unknown';
                 if (!typeRevenue[key]) typeRevenue[key] = { revenue: 0, count: 0, name: typeName };
                 typeRevenue[key].revenue += price;
                 typeRevenue[key].count += 1;
@@ -142,9 +142,6 @@ export async function GET(req) {
             .slice(0, 5);
 
         // Code inventory (from aggregation counts)
-        const codesAvailable = codesAvailableSnap.data().count;
-        const codesUsed = codesUsedSnap.data().count;
-
         const daily = Object.values(buckets);
 
         // Half-period vs previous half for delta
@@ -157,7 +154,7 @@ export async function GET(req) {
         const revenueDelta = prevSum > 0 ? ((currSum - prevSum) / prevSum) * 100 : (currSum > 0 ? 100 : 0);
 
         // Prefer unique customer count derived from orders; fallback to users collection size
-        const customersCount = uniqueCustomers.size || usersCountSnap.data().count || 0;
+        const customersCount = uniqueCustomers.size || usersCount || 0;
 
         const data = {
             totalRevenue,

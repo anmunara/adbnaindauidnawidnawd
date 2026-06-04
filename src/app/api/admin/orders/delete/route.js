@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { db } from '@/lib/db';
 import { requireAdmin } from '@/lib/admin-auth';
 import { assertSameOrigin } from '@/lib/security';
 
@@ -23,17 +23,15 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Max 100 per batch' }, { status: 400 });
         }
 
-        const batch = adminDb.batch();
         let deleted = 0;
         for (const entry of orderIds) {
             const { id, source } = entry || {};
             if (typeof id !== 'string' || id.length > 64) continue;
             if (!['orders', 'transactions'].includes(source)) continue;
-            batch.delete(adminDb.collection(source).doc(id));
+            await db.collection(source).doc(id).delete();
             deleted += 1;
         }
 
-        await batch.commit();
         return NextResponse.json({ success: true, deleted });
     } catch (error) {
         console.error('[Order Delete] Error:', error);
