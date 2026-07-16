@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import { db } from '@/lib/db';
 import { assertSameOrigin } from '@/lib/security';
+import { getStock as getAbahcodeStock } from '@/lib/abahcode';
 import crypto from 'crypto';
 
 // Rate limiting per user
@@ -127,19 +128,42 @@ export async function POST(request) {
             return NextResponse.json({ success: false, message: 'Produk belum dikonfigurasi' }, { status: 400 });
         }
         const trustedItemName = String(typeData.name || 'Cloud Phone').slice(0, 100).replace(/[<>"']/g, '');
+        const source = typeData.source || 'local';
 
-        // 1. Check Stock BEFORE creating payment
-        const codesSnapshot = await db.collection('redeem_codes')
-            .where('type_id', '==', itemIdValidation.value)
-            .where('is_used', '==', false)
-            .limit(1)
-            .get();
+        // 1. Check Stock BEFORE creating payment.
+        // Local products: count unused codes we hold. Abahcode dropship: query
+        // live supplier stock — fail closed (block the sale) if unreachable so
+        // we never invoice a customer for something we can't buy.
+        if (source === 'abahcode') {
+            let providerStock = 0;
+            try {
+                providerStock = await getAbahcodeStock(typeData.provider_product_id);
+            } catch (e) {
+                console.error('[Transaction Create] Abahcode stock check failed:', e.message);
+                return NextResponse.json(
+                    { success: false, message: 'Produk sementara tidak tersedia. Coba lagi nanti.' },
+                    { status: 503 }
+                );
+            }
+            if (providerStock < 1) {
+                return NextResponse.json(
+                    { success: false, message: 'Stok habis! Silakan hubungi admin.' },
+                    { status: 400 }
+                );
+            }
+        } else {
+            const codesSnapshot = await db.collection('redeem_codes')
+                .where('type_id', '==', itemIdValidation.value)
+                .where('is_used', '==', false)
+                .limit(1)
+                .get();
 
-        if (codesSnapshot.empty) {
-            return NextResponse.json(
-                { success: false, message: 'Stok habis! Silakan hubungi admin.' },
-                { status: 400 }
-            );
+            if (codesSnapshot.empty) {
+                return NextResponse.json(
+                    { success: false, message: 'Stok habis! Silakan hubungi admin.' },
+                    { status: 400 }
+                );
+            }
         }
 
         // 2. Create Order ID with crypto (more secure than Math.random)

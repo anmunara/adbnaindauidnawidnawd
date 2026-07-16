@@ -2,7 +2,15 @@
 
 # dependencies
 /node_modules
+/discord-bot/node_modules
+node_modules/
 /.pnp
+
+# local database (sqlite)
+/data/
+*.db
+*.db-shm
+*.db-wal
 .pnp.*
 .yarn/*
 !.yarn/patches

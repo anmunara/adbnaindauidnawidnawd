@@ -34,9 +34,13 @@ CREATE TABLE IF NOT EXISTS game_types (
     name TEXT NOT NULL,               -- Product display name
     selling_price INTEGER NOT NULL,   -- Price in IDR (stored as integer)
     capital_price INTEGER,            -- Cost price for profit calculation
-    category TEXT DEFAULT 'redfinger', -- Category: 'redfinger' or 'roblox'
+    category TEXT DEFAULT 'redfinger', -- Category: 'redfinger', 'roblox', or an Abahcode category
+    source TEXT DEFAULT 'local',      -- 'local' (own redeem_codes stock) or 'abahcode' (dropship)
+    provider_product_id TEXT,         -- Abahcode product id (when source='abahcode')
     created_at TEXT NOT NULL          -- ISO 8601 timestamp
 );
+
+CREATE INDEX IF NOT EXISTS idx_game_types_source ON game_types(source);
 
 CREATE INDEX idx_game_types_category ON game_types(category);
 CREATE INDEX idx_game_types_created_at ON game_types(created_at DESC);
@@ -87,6 +91,7 @@ CREATE TABLE IF NOT EXISTS orders (
     duitku_reference TEXT,            -- Duitku reference from callback
     expiry_time TEXT,                 -- Payment expiry time
     redeem_code TEXT,                 -- Assigned code after payment
+    provider_invoice TEXT,            -- Abahcode invoice_no (dropship fulfilment audit)
     paid_at TEXT,                     -- ISO 8601 timestamp when paid
     resent_at TEXT,                   -- ISO 8601 timestamp if admin resent
     failure_reason TEXT,              -- Reason if order failed

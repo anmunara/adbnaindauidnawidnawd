@@ -8,7 +8,9 @@
     "start": "concurrently --names \"web,bot\" --prefix-colors \"cyan,magenta\" \"next start\" \"node discord-bot/index.js\"",
     "start:web": "next start",
     "start:bot": "node discord-bot/index.js",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate:abahcode": "node scripts/migrate-add-abahcode.js",
+    "sync:abahcode": "node scripts/sync-abahcode-products.js"
   },
   "dependencies": {
     "@radix-ui/react-icons": "^1.3.2",

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import crypto from 'crypto';
 import { maskCode, maskEmail } from '@/lib/security';
+import { buySingle as buyAbahcodeVoucher } from '@/lib/abahcode';
 
 export async function POST(req) {
     try {
@@ -73,62 +74,111 @@ export async function POST(req) {
             const source = orderSource === 'orders' ? 'Website' : 'Discord';
             const userName = orderData.username || orderData.user_id || orderData.userId || 'Unknown';
 
-            // Atomic code allocation via SQLite transaction
-            // Prevents race condition where 2 callbacks pick the same unused code
-            let assignedCode = 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
+            // Determine fulfilment source: 'local' (own redeem_codes stock) or
+            // 'abahcode' (dropship — buy the voucher on-demand from the supplier).
+            let productSource = 'local';
+            let providerProductId = null;
             try {
-                assignedCode = await db.runTransaction(async (tx) => {
-                    // Query for available codes
-                    const candidateSnap = await db.collection('redeem_codes')
-                        .where('type_id', '==', itemId)
-                        .where('is_used', '==', false)
-                        .limit(5)
-                        .get();
+                const prodDoc = await db.collection('game_types').doc(itemId).get();
+                if (prodDoc.exists) {
+                    const pd = prodDoc.data();
+                    productSource = pd.source || 'local';
+                    providerProductId = pd.provider_product_id || null;
+                }
+            } catch (e) {
+                console.error('[Callback] Product lookup failed:', e.message);
+            }
 
-                    // Try each candidate inside the transaction
-                    for (const candDoc of candidateSnap.docs) {
-                        // Re-read the candidate inside the transaction to ensure it's still available
-                        const fresh = await tx.get(candDoc.ref);
-                        if (fresh.exists && fresh.data().is_used === false) {
-                            const saleTimestamp = new Date().toISOString();
-                            const note = `Terjual via ${source} | User: ${userName} | Ref: ${reference} | Order: ${merchantOrderId} | Waktu: ${saleTimestamp}`;
+            let assignedCode = 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
+            let providerInvoice = null;
 
-                            tx.update(candDoc.ref, {
-                                is_used: true,
-                                sold_to: orderData.user_id || orderData.userId || 'unknown',
-                                transaction_id: merchantOrderId,
-                                note,
-                                sold_at: saleTimestamp,
-                                updated_at: saleTimestamp,
-                            });
-                            return fresh.data().code;
+            if (productSource === 'abahcode') {
+                // Dropship purchase deducts real balance, so claim the order
+                // first (atomic status flip). A concurrent duplicate callback
+                // loses the claim and must NOT buy a second voucher.
+                let claimed = false;
+                try {
+                    claimed = await db.runTransaction(async (tx) => {
+                        const fresh = await tx.get(orderRef);
+                        const st = fresh.exists ? fresh.data().status : null;
+                        if (st !== 'SUCCESS' && st !== 'PROCESSING') {
+                            tx.update(orderRef, { status: 'PROCESSING', updated_at: new Date().toISOString() });
+                            return true;
                         }
+                        return false;
+                    });
+                } catch (claimErr) {
+                    console.error('[Callback] Abahcode claim tx failed:', claimErr);
+                }
+
+                if (!claimed) {
+                    return NextResponse.json({ message: 'Already processing' }, { status: 200 });
+                }
+
+                try {
+                    const result = await buyAbahcodeVoucher(providerProductId);
+                    if (result.code) {
+                        assignedCode = result.code;
+                        providerInvoice = result.invoiceNo;
                     }
-                    return 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
-                });
-            } catch (txErr) {
-                console.error('[Callback] Code allocation tx failed:', txErr);
+                } catch (buyErr) {
+                    console.error(`[Callback] Abahcode purchase failed order=${merchantOrderId}:`, buyErr.message);
+                }
+            } else {
+                // Local: atomic code allocation via SQLite transaction.
+                // Prevents race condition where 2 callbacks pick the same unused code.
+                try {
+                    assignedCode = await db.runTransaction(async (tx) => {
+                        const candidateSnap = await db.collection('redeem_codes')
+                            .where('type_id', '==', itemId)
+                            .where('is_used', '==', false)
+                            .limit(5)
+                            .get();
+
+                        for (const candDoc of candidateSnap.docs) {
+                            const fresh = await tx.get(candDoc.ref);
+                            if (fresh.exists && fresh.data().is_used === false) {
+                                const saleTimestamp = new Date().toISOString();
+                                const note = `Terjual via ${source} | User: ${userName} | Ref: ${reference} | Order: ${merchantOrderId} | Waktu: ${saleTimestamp}`;
+
+                                tx.update(candDoc.ref, {
+                                    is_used: true,
+                                    sold_to: orderData.user_id || orderData.userId || 'unknown',
+                                    transaction_id: merchantOrderId,
+                                    note,
+                                    sold_at: saleTimestamp,
+                                    updated_at: saleTimestamp,
+                                });
+                                return fresh.data().code;
+                            }
+                        }
+                        return 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
+                    });
+                } catch (txErr) {
+                    console.error('[Callback] Code allocation tx failed:', txErr);
+                }
             }
 
             const stockOk = assignedCode && assignedCode !== 'STOCK_EMPTY_PLEASE_CONTACT_ADMIN';
 
             // Customer has paid. Only mark SUCCESS if a real code was actually
-            // allocated; otherwise flag PAID_NO_STOCK so the order is not closed
-            // as fulfilled and an admin can refund / restock + resend.
+            // allocated/purchased; otherwise flag PAID_NO_STOCK so the order is
+            // not closed as fulfilled and an admin can refund / restock + resend.
             await orderRef.update({
                 status: stockOk ? 'SUCCESS' : 'PAID_NO_STOCK',
                 duitku_reference: reference,
                 redeem_code: stockOk ? assignedCode : null,
+                provider_invoice: providerInvoice,
                 paid_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             });
 
             if (!stockOk) {
-                console.error(`[Callback] PAID BUT NO STOCK order=${merchantOrderId} item=${itemId} — refund/restock needed`);
+                console.error(`[Callback] PAID BUT NO STOCK order=${merchantOrderId} item=${itemId} src=${productSource} — refund/restock needed`);
                 return NextResponse.json({ message: 'Paid, awaiting stock' }, { status: 200 });
             }
 
-            console.log(`[Callback] Order ${merchantOrderId} SUCCESS (${source}) - Code: ${maskCode(assignedCode)} - User: ${maskEmail(orderData.user_email || orderData.userEmail || '')}`);
+            console.log(`[Callback] Order ${merchantOrderId} SUCCESS (${source}/${productSource}) - Code: ${maskCode(assignedCode)} - User: ${maskEmail(orderData.user_email || orderData.userEmail || '')}`);
             return NextResponse.json({ message: 'Success' }, { status: 200 });
         } else {
             await orderRef.update({

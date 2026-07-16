@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { assertBotSecret } from '@/lib/security';
+import { getStock as getAbahcodeStock } from '@/lib/abahcode';
 import crypto from 'crypto';
 
 export async function POST(req) {
@@ -21,16 +22,31 @@ export async function POST(req) {
             return NextResponse.json({ success: false, message: 'Product not found' }, { status: 404 });
         }
         const productData = productDoc.data();
+        const source = productData.source || 'local';
 
-        // 2. Check stock
-        const stockCheck = await db.collection('redeem_codes')
-            .where('type_id', '==', itemId)
-            .where('is_used', '==', false)
-            .limit(1)
-            .get();
+        // 2. Check stock. Local products count unused codes; Abahcode dropship
+        // queries live supplier stock and fails closed if unreachable.
+        if (source === 'abahcode') {
+            let providerStock = 0;
+            try {
+                providerStock = await getAbahcodeStock(productData.provider_product_id);
+            } catch (e) {
+                console.error('[Bot Order Create] Abahcode stock check failed:', e.message);
+                return NextResponse.json({ success: false, message: 'Provider unavailable' }, { status: 503 });
+            }
+            if (providerStock < 1) {
+                return NextResponse.json({ success: false, message: 'Out of stock' }, { status: 400 });
+            }
+        } else {
+            const stockCheck = await db.collection('redeem_codes')
+                .where('type_id', '==', itemId)
+                .where('is_used', '==', false)
+                .limit(1)
+                .get();
 
-        if (stockCheck.empty) {
-            return NextResponse.json({ success: false, message: 'Out of stock' }, { status: 400 });
+            if (stockCheck.empty) {
+                return NextResponse.json({ success: false, message: 'Out of stock' }, { status: 400 });
+            }
         }
 
         // 3. Calculate price (server-side from product — never trust client)

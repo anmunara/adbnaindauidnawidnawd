@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { cacheGet, cacheSet, cachePeek } from '@/lib/memoryCache';
+import { getProducts as getAbahcodeProducts } from '@/lib/abahcode';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0; // No CDN/page cache; we manage freshness in-process
@@ -27,9 +28,28 @@ export async function GET(req) {
         // Fetch all game types
         const typesSnapshot = await db.collection('game_types').get();
 
+        // Abahcode dropship products read live stock from the supplier catalog
+        // (keyed by provider_product_id). Fetch it once, tolerate failure — if
+        // Abahcode is unreachable we fall back to stock 0 for those items so we
+        // never oversell what we can't buy.
+        const hasAbahcode = typesSnapshot.docs.some((d) => d.data().source === 'abahcode');
+        let abahStockById = null;
+        if (hasAbahcode) {
+            try {
+                const catalog = await getAbahcodeProducts();
+                abahStockById = {};
+                for (const p of catalog) {
+                    abahStockById[String(p.id)] = Number(p.stock) || 0;
+                }
+            } catch (e) {
+                console.error('[products/get] Abahcode stock fetch failed:', e.message);
+                abahStockById = null; // signal: supplier unreachable
+            }
+        }
+
         const products = [];
 
-        // For each type, count available codes
+        // For each type, resolve available stock
         for (const typeDoc of typesSnapshot.docs) {
             const typeData = typeDoc.data();
             const typeId = typeDoc.id;
@@ -41,11 +61,21 @@ export async function GET(req) {
                 await typeDoc.ref.update({ category }).catch(() => {});
             }
 
-            // Count codes that are NOT used
-            const codesSnapshot = await db.collection('redeem_codes')
-                .where('type_id', '==', typeId)
-                .where('is_used', '==', false)
-                .get();
+            const source = typeData.source || 'local';
+            let stock;
+            if (source === 'abahcode') {
+                // Live supplier stock; 0 when the provider is unreachable so we
+                // don't advertise availability we can't fulfil.
+                const pid = String(typeData.provider_product_id || '');
+                stock = abahStockById ? (abahStockById[pid] ?? 0) : 0;
+            } else {
+                // Local stock: count codes that are NOT used
+                const codesSnapshot = await db.collection('redeem_codes')
+                    .where('type_id', '==', typeId)
+                    .where('is_used', '==', false)
+                    .get();
+                stock = codesSnapshot.size;
+            }
 
             products.push({
                 id: typeId,
@@ -54,7 +84,8 @@ export async function GET(req) {
                 sellingPrice: typeData.selling_price,
                 capitalPrice: typeData.capital_price,
                 category,
-                stock: codesSnapshot.size, // Available codes count
+                source,
+                stock,
                 createdAt: typeData.created_at,
             });
         }
